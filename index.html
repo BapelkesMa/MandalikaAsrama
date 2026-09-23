@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asrama Mandalika · Bapelkes Mataram</title>
+<meta name="description" content="Pemesanan kamar Asrama Mandalika, Balai Pelatihan Kesehatan Mataram.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="3" transform="rotate(45 20 20)" fill="#0E5563"/><rect x="13" y="13" width="14" height="14" transform="rotate(45 20 20)" fill="#C99A3B"/></svg>
+      <span><span class="brand-name" data-c="NAMA_ASRAMA">Asrama Mandalika</span><span class="brand-sub">Bapelkes Mataram</span></span>
+    </a>
+    <nav class="nav" aria-label="Menu utama">
+      <a href="#kamar">Tipe kamar</a>
+      <a href="#pesan">Pesan</a>
+      <a href="#cek">Cek status</a>
+      <a href="#info">Kontak</a>
+      <a class="btn btn-outline btn-sm" href="peserta.html">Info kamar peserta</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Menginap nyaman selama pelatihan dan kegiatan Anda di Mataram.</h1>
+        <p>Lihat kamar yang masih kosong, ajukan pemesanan secara online, lalu terima kode reservasi untuk check-in di asrama.</p>
+        <div class="row">
+          <a class="btn btn-accent" href="#pesan">Pesan kamar</a>
+          <a class="btn btn-outline" href="peserta.html">Saya peserta pelatihan</a>
+        </div>
+      </div>
+      <div class="hero-photo" id="hero-photo">[Foto gedung Asrama Mandalika]</div>
+    </div>
+  </section>
+
+  <section class="section" id="kamar">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Pilihan kamar</h2>
+        <span class="muted small">Tarif per kamar per malam sesuai ketentuan PNBP yang berlaku</span>
+      </div>
+      <div class="cards-3" id="daftar-kamar"><p class="muted">Memuat tipe kamar…</p></div>
+    </div>
+  </section>
+
+  <section class="section" id="pesan">
+    <div class="wrap">
+      <div class="section-head"><h2>Pesan kamar</h2></div>
+
+      <div id="booking-form" class="booking">
+        <div class="stack">
+          <div class="card stack">
+            <span class="label">1. Pilih tipe kamar dan jumlahnya</span>
+            <div class="type-pick" id="pilih-tipe" role="group" aria-label="Tipe kamar"></div>
+            <div class="field" style="max-width:220px">
+              <span class="label" id="lbl-jumlah">Jumlah kamar</span>
+              <div class="stepper" role="group" aria-labelledby="lbl-jumlah">
+                <button type="button" id="kurang" aria-label="Kurangi jumlah kamar">−</button>
+                <b id="jumlah" aria-live="polite">1</b>
+                <button type="button" id="tambah" aria-label="Tambah jumlah kamar">+</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="label">2. Klik tanggal masuk, lalu tanggal keluar</span>
+            <div class="cal-nav" style="margin-top:12px">
+              <button type="button" class="icon-btn" id="bulan-prev" aria-label="Bulan sebelumnya"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+              <span class="muted small" id="cal-status" aria-live="polite"></span>
+              <button type="button" class="icon-btn" id="bulan-next" aria-label="Bulan berikutnya"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+            </div>
+            <div class="months" id="kalender"></div>
+            <div class="legend">
+              <span><i style="background:#FFFDF8"></i>Angka kecil = sisa kamar</span>
+              <span><i style="background:#0E5563;border-color:#0E5563"></i>Dipilih</span>
+              <span><i style="background:#F1E4DF"></i>Tidak cukup untuk jumlah kamar Anda</span>
+            </div>
+          </div>
+        </div>
+
+        <form class="stack" id="form-pesan" novalidate>
+          <div class="card stack">
+            <span class="label">3. Data pemesan</span>
+            <div class="field"><label for="f-nama">Nama lengkap</label><input class="input" id="f-nama" name="nama" required autocomplete="name"></div>
+            <div class="grid-2">
+              <div class="field"><label for="f-instansi">Instansi</label><input class="input" id="f-instansi" name="instansi" autocomplete="organization"></div>
+              <div class="field"><label for="f-hp">No. WhatsApp</label><input class="input" id="f-hp" name="hp" type="tel" inputmode="tel" required autocomplete="tel" placeholder="08…"></div>
+            </div>
+            <div class="grid-2">
+              <div class="field"><label for="f-email">Email (opsional)</label><input class="input" id="f-email" name="email" type="email" autocomplete="email"></div>
+              <div class="field"><label for="f-keperluan">Keperluan</label>
+                <select class="input" id="f-keperluan" name="keperluan">
+                  <option>Kegiatan dinas</option><option>Rapat / pertemuan</option><option>Rombongan</option><option>Pribadi</option><option>Lainnya</option>
+                </select></div>
+            </div>
+            <div class="field"><label for="f-catatan">Catatan untuk petugas (opsional)</label><textarea class="input" id="f-catatan" name="catatan" maxlength="300"></textarea></div>
+            <div class="sr-only" aria-hidden="true"><label for="f-web">Jangan diisi</label><input id="f-web" name="website" tabindex="-1" autocomplete="off"></div>
+          </div>
+
+          <div class="summary">
+            <h3>Ringkasan</h3>
+            <div class="line"><span>Kamar</span><b id="s-tipe">—</b></div>
+            <div class="line"><span>Masuk</span><b id="s-masuk">Belum dipilih</b></div>
+            <div class="line"><span>Keluar</span><b id="s-keluar">Belum dipilih</b></div>
+            <div class="line" style="border-top:1px solid #2A5E69;padding-top:10px"><span>Lama menginap</span><b id="s-malam">—</b></div>
+            <p class="note">Total biaya dihitung dari tarif PNBP dan dikirim bersama kode billing setelah pemesanan disetujui petugas.</p>
+            <div id="pesan-error" class="alert alert-err hidden" role="alert"></div>
+            <button class="btn btn-gold" type="submit" id="kirim">Kirim pemesanan</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="booking-done" class="card hidden" tabindex="-1">
+        <div class="done-card">
+          <div class="qr" id="qr" aria-label="Kode QR reservasi"></div>
+          <div class="stack">
+            <span class="badge b-kuning" style="align-self:flex-start">Menunggu verifikasi petugas</span>
+            <span class="kode" id="d-kode"></span>
+            <p id="d-ringkas" class="muted"></p>
+            <p class="small">Simpan kode ini. Petugas akan menghubungi WhatsApp Anda. Setelah disetujui, Anda menerima kode billing SIMPONI untuk pembayaran. Status bisa dicek kapan saja di bagian <a href="#cek">Cek status</a>.</p>
+            <div class="row">
+              <a class="btn btn-primary" id="d-wa" target="_blank" rel="noopener">Kabari petugas lewat WhatsApp</a>
+              <button type="button" class="btn btn-outline" id="d-lagi">Buat pemesanan lain</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="alur">
+    <div class="wrap">
+      <div class="section-head"><h2>Cara memesan</h2></div>
+      <ol class="steps">
+        <li><strong>Pilih tanggal dan kamar</strong><span class="muted small">Lihat sisa kamar di kalender, lalu isi data pemesan.</span></li>
+        <li><strong>Verifikasi petugas</strong><span class="muted small">Petugas asrama memeriksa dan menyetujui pemesanan.</span></li>
+        <li><strong>Bayar lewat SIMPONI</strong><span class="muted small">Anda menerima kode billing PNBP, lalu kirim bukti bayar.</span></li>
+        <li><strong>Check-in</strong><span class="muted small">Tunjukkan kode reservasi atau kode QR di resepsionis.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" id="cek">
+    <div class="wrap">
+      <div class="card" style="max-width:720px">
+        <h2 style="font-size:30px;margin-bottom:6px">Cek status pemesanan</h2>
+        <p class="muted small" style="margin-bottom:16px">Masukkan kode reservasi dan 4 angka terakhir nomor WhatsApp yang Anda daftarkan.</p>
+        <form class="row" id="form-cek" novalidate style="align-items:flex-end">
+          <div class="field" style="flex:1 1 220px"><label for="c-kode">Kode reservasi</label><input class="input" id="c-kode" required placeholder="MDL-…" autocapitalize="characters"></div>
+          <div class="field" style="flex:0 1 150px"><label for="c-hp">4 angka terakhir HP</label><input class="input" id="c-hp" required inputmode="numeric" maxlength="4"></div>
+          <button class="btn btn-primary" type="submit">Cek status</button>
+        </form>
+        <div id="cek-hasil" style="margin-top:16px" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer id="info">
+  <div class="tenun" aria-hidden="true"></div>
+  <div class="footer">
+    <div class="wrap cols">
+      <div><h3>Tata tertib singkat</h3><p class="small">Check-in mulai <span data-c="JAM_CHECKIN"></span>, check-out paling lambat <span data-c="JAM_CHECKOUT"></span>.</p><ul class="small" id="tatib"></ul></div>
+      <div><h3>Kontak petugas</h3><p class="small" id="kontak"></p></div>
+      <div><h3>Alamat</h3><p class="small"><span data-c="INSTANSI"></span><br><span data-c="ALAMAT"></span></p></div>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/tamu.js"></script>
+</body>
+</html>

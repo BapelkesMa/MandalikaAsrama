@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Petugas · Asrama Mandalika</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div id="login" class="login">
+  <form class="card stack" id="form-login" style="width:min(400px,100%)" novalidate>
+    <div class="brand">
+      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="3" transform="rotate(45 20 20)" fill="#0E5563"/><rect x="13" y="13" width="14" height="14" transform="rotate(45 20 20)" fill="#C99A3B"/></svg>
+      <span><span class="brand-name">Asrama Mandalika</span><span class="brand-sub">Panel petugas</span></span>
+    </div>
+    <div class="field"><label for="pin">PIN petugas</label><input class="input" id="pin" type="password" autocomplete="current-password" required></div>
+    <div id="login-err" class="alert alert-err hidden" role="alert"></div>
+    <button class="btn btn-primary" type="submit" id="btn-login">Masuk</button>
+    <a class="small" href="./">Kembali ke halaman tamu</a>
+  </form>
+</div>
+
+<div id="app" class="admin hidden">
+  <aside class="side">
+    <div class="brand">
+      <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="3" transform="rotate(45 20 20)" fill="#C99A3B"/><rect x="13" y="13" width="14" height="14" transform="rotate(45 20 20)" fill="#0B3F4A"/></svg>
+      <span><span class="brand-name">Mandalika</span><span class="brand-sub">Panel petugas</span></span>
+    </div>
+    <nav aria-label="Menu petugas">
+      <button type="button" data-view="reservasi" aria-current="page">Reservasi</button>
+      <button type="button" data-view="kamar">Kamar &amp; kebersihan</button>
+      <button type="button" data-view="rooming">Rooming list pelatihan</button>
+    </nav>
+    <div class="bottom">
+      <button type="button" class="link-btn" id="refresh">Muat ulang data</button>
+      <a href="./" target="_blank" rel="noopener">Lihat halaman tamu</a>
+      <button type="button" class="link-btn" id="logout">Keluar</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- RESERVASI -->
+    <section id="v-reservasi" class="stack" style="gap:22px">
+      <div class="row" style="justify-content:space-between">
+        <div><span class="muted small" id="hari-ini"></span><h1 style="font-size:36px">Reservasi</h1></div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="card stack">
+        <div class="row" style="justify-content:space-between">
+          <div class="tabs" role="tablist" id="res-tabs"></div>
+          <div class="field" style="flex:0 1 260px"><label class="sr-only" for="cari">Cari reservasi</label><input class="input" id="cari" type="search" placeholder="Cari kode, nama, instansi"></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kode</th><th>Pemesan</th><th>Kamar</th><th>Tanggal</th><th>Status</th><th><span class="sr-only">Aksi</span></th></tr></thead>
+            <tbody id="res-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- KAMAR -->
+    <section id="v-kamar" class="stack hidden" style="gap:22px">
+      <div><h1 style="font-size:36px">Kamar &amp; kebersihan</h1><p class="muted small">Ubah status kamar di sini. Kamar berstatus <b>Perbaikan</b> tidak ikut dihitung sebagai kamar tersedia untuk tamu.</p></div>
+      <div class="legend" style="margin:0">
+        <span><i class="k-siap"></i>Siap huni</span><span><i class="k-terisi" style="border-color:#0E5563"></i>Terisi</span>
+        <span><i class="k-kotor"></i>Perlu dibersihkan</span><span><i class="k-perbaikan"></i>Perbaikan</span>
+      </div>
+      <div id="kamar-list" class="stack"></div>
+    </section>
+
+    <!-- ROOMING -->
+    <section id="v-rooming" class="stack hidden" style="gap:22px">
+      <div><h1 style="font-size:36px">Rooming list pelatihan</h1><p class="muted small">Unggah daftar peserta, sistem membagi kamar kosong secara otomatis, lalu kirim info kamar ke setiap peserta lewat WhatsApp.</p></div>
+
+      <div class="card stack">
+        <b>1. Data pelatihan dan peserta</b>
+        <div class="grid-2">
+          <div class="field" style="grid-column:1/-1"><label for="rl-nama">Nama pelatihan</label><input class="input" id="rl-nama"></div>
+          <div class="field"><label for="rl-masuk">Tanggal masuk asrama</label><input class="input" id="rl-masuk" type="date"></div>
+          <div class="field"><label for="rl-keluar">Tanggal keluar asrama</label><input class="input" id="rl-keluar" type="date"></div>
+        </div>
+        <div class="field">
+          <label for="rl-file">File daftar peserta (Excel atau CSV)</label>
+          <input class="input" id="rl-file" type="file" accept=".xlsx,.xls,.csv">
+          <span class="small muted">Kolom yang dibaca: <b>nama</b>, <b>jenis kelamin</b> (L/P), <b>instansi</b>, <b>no. HP</b>. <button type="button" class="link-btn" id="rl-template">Unduh contoh format</button></span>
+        </div>
+        <div id="rl-baca" class="small" aria-live="polite"></div>
+      </div>
+
+      <div class="card stack">
+        <b>2. Aturan pembagian kamar</b>
+        <label class="row small"><input type="checkbox" id="opt-jk" checked> Pisahkan kamar berdasarkan jenis kelamin</label>
+        <label class="row small"><input type="checkbox" id="opt-campur" checked> Campur peserta dari instansi berbeda dalam satu kamar</label>
+        <label class="row small"><input type="checkbox" id="opt-cadangan"> Sisakan 1 kamar cadangan</label>
+        <div class="row small" id="opt-tipe"></div>
+        <div class="row">
+          <button type="button" class="btn btn-primary" id="rl-susun">Cari kamar kosong &amp; susun</button>
+          <span id="rl-msg" class="small" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div id="rl-hasil" class="card stack hidden">
+        <div class="row" style="justify-content:space-between">
+          <b>3. Periksa hasil penempatan</b>
+          <span class="small muted">Pindahkan peserta dengan pilihan di bawah namanya.</span>
+        </div>
+        <div id="rl-grid" class="rl-grid"></div>
+        <div id="rl-sisa"></div>
+        <div class="row">
+          <button type="button" class="btn btn-accent" id="rl-simpan">Simpan &amp; buat link peserta</button>
+          <span id="rl-simpan-msg" class="small" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div class="card stack">
+        <b>Rooming list tersimpan</b>
+        <div id="rl-tersimpan" class="stack"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal-bg hidden" role="dialog" aria-modal="true" aria-labelledby="m-title"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/api.js"></script>
+<script src="assets/admin.js"></script>
+</body>
+</html>

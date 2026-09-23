@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Info Kamar Peserta · Asrama Mandalika</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .p-wrap { width: min(480px, 100%); margin: 0 auto; }
+  .p-head { background: var(--laut-tua); color: #E6F0F1; padding: 28px 22px 76px; }
+  .p-head h1 { color: #fff; font-size: 28px; margin: 6px 0; }
+  .p-card { margin: -54px 16px 0; background: var(--kertas); border-radius: 16px; box-shadow: 0 10px 24px rgba(30,42,47,.12); padding: 22px; display: flex; flex-direction: column; gap: 16px; position: relative; }
+  .no-kamar { font-family: var(--display); font-size: 48px; font-weight: 600; color: var(--laut-tua); line-height: 1; }
+  .p-sec { padding: 20px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+  .p-box { background: var(--kertas); border: 1px solid var(--garis); border-radius: 12px; padding: 16px; }
+  .mate { display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 42px; height: 42px; border-radius: 50%; background: var(--tanah-muda); color: #8C3B28; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+  .p-qr { width: 110px; height: 110px; }
+  .p-qr img, .p-qr canvas { width: 100% !important; height: 100% !important; }
+</style>
+</head>
+<body>
+<div class="p-wrap">
+  <div id="cari" class="hidden" style="padding:40px 20px">
+    <a class="brand" href="./" style="margin-bottom:28px">
+      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="3" transform="rotate(45 20 20)" fill="#0E5563"/><rect x="13" y="13" width="14" height="14" transform="rotate(45 20 20)" fill="#C99A3B"/></svg>
+      <span class="brand-name">Asrama Mandalika</span>
+    </a>
+    <h1 style="font-size:32px;margin-bottom:10px">Info kamar peserta pelatihan</h1>
+    <p class="muted" style="margin-bottom:20px">Buka link yang dikirim panitia lewat WhatsApp, atau masukkan kode peserta Anda (12 karakter terakhir pada link).</p>
+    <form class="stack" id="form-cari" novalidate>
+      <div class="field"><label for="kode">Kode peserta</label><input class="input" id="kode" required autocomplete="off"></div>
+      <button class="btn btn-primary" type="submit">Lihat info kamar</button>
+      <div id="cari-err" class="alert alert-err hidden" role="alert"></div>
+    </form>
+  </div>
+
+  <div id="info" class="hidden">
+    <div class="p-head">
+      <span class="small" style="color:var(--emas);font-weight:600">Asrama Mandalika · Bapelkes Mataram</span>
+      <h1 id="p-nama"></h1>
+      <span class="small" id="p-pelatihan"></span>
+    </div>
+    <div class="p-card">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div><span class="small muted">Kamar Anda</span><div class="no-kamar" id="p-kamar"></div><span class="small muted" id="p-tipe"></span></div>
+        <div class="p-qr" id="p-qr" aria-label="Kode QR check-in"></div>
+      </div>
+      <div class="grid-2" style="border-top:1px solid #EDE5D8;padding-top:14px">
+        <div><span class="small muted">Check-in</span><br><b id="p-masuk"></b><br><span class="small muted">mulai <span data-c="JAM_CHECKIN"></span></span></div>
+        <div><span class="small muted">Check-out</span><br><b id="p-keluar"></b><br><span class="small muted">paling lambat <span data-c="JAM_CHECKOUT"></span></span></div>
+      </div>
+    </div>
+    <div class="p-sec"><b>Teman sekamar</b><div id="p-teman" class="stack"></div></div>
+    <div class="p-sec"><b>Yang perlu diketahui</b><div class="p-box"><ul class="small muted" id="p-tatib" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px"></ul></div></div>
+    <div class="p-sec" style="padding-bottom:28px">
+      <a class="btn btn-primary" id="p-wa" target="_blank" rel="noopener">Hubungi petugas asrama</a>
+      <a class="btn btn-outline" href="./">Ke beranda asrama</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="assets/config.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/api.js"></script>
+<script>
+(function () {
+  var C = window.CONFIG, $ = function (id) { return document.getElementById(id); };
+  U.demoBanner('');
+  document.querySelectorAll('[data-c]').forEach(function (el) { el.textContent = C[el.getAttribute('data-c')] || ''; });
+  $('p-tatib').innerHTML = (C.TATA_TERTIB || []).map(function (t) { return '<li>' + U.esc(t) + '</li>'; }).join('');
+
+  function muat(k) {
+    return API.get('peserta', { k: k }).then(function (r) {
+      if (!r.ok) return r;
+      var p = r.peserta;
+      document.title = 'Kamar ' + p.kamar + ' · Asrama Mandalika';
+      $('p-nama').textContent = 'Halo, ' + p.nama;
+      $('p-pelatihan').textContent = p.pelatihan + ' · ' + U.tgl(p.masuk) + ' – ' + U.tgl(p.keluar);
+      $('p-kamar').textContent = p.kamar;
+      $('p-tipe').textContent = [p.lantai ? 'Lantai ' + p.lantai : '', p.tipeNama].filter(Boolean).join(' · ');
+      $('p-masuk').textContent = U.tgl(p.masuk, true);
+      $('p-keluar').textContent = U.tgl(p.keluar, true);
+      $('p-teman').innerHTML = p.teman.length ? p.teman.map(function (t) {
+        var ini = t.nama.split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+        return '<div class="p-box mate"><span class="avatar" aria-hidden="true">' + U.esc(ini) + '</span><span><b>' + U.esc(t.nama) + '</b><br><span class="small muted">' + U.esc(t.instansi) + '</span></span></div>';
+      }).join('') : '<div class="p-box small muted">Anda menempati kamar ini sendiri.</div>';
+      if (window.QRCode) new QRCode($('p-qr'), { text: 'PESERTA:' + k, width: 110, height: 110 });
+      var wa = $('p-wa');
+      if (C.WHATSAPP_PETUGAS) wa.href = U.wa(C.WHATSAPP_PETUGAS, 'Halo petugas Asrama Mandalika, saya ' + p.nama + ' peserta ' + p.pelatihan + ' di kamar ' + p.kamar + '.');
+      else wa.classList.add('hidden');
+      $('cari').classList.add('hidden');
+      $('info').classList.remove('hidden');
+      return r;
+    });
+  }
+
+  var k = new URLSearchParams(location.search).get('k');
+  if (k) muat(k).then(function (r) { if (!r.ok) { $('cari').classList.remove('hidden'); $('cari-err').textContent = r.error; $('cari-err').classList.remove('hidden'); } });
+  else $('cari').classList.remove('hidden');
+
+  $('form-cari').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = $('kode').value.trim();
+    var m = v.match(/[?&]k=([^&]+)/);
+    if (m) v = decodeURIComponent(m[1]);
+    if (!v) return;
+    muat(v).then(function (r) {
+      if (r.ok) history.replaceState(null, '', '?k=' + encodeURIComponent(v));
+      else { $('cari-err').textContent = r.error; $('cari-err').classList.remove('hidden'); }
+    });
+  });
+})();
+</script>
+</body>
+</html>
