@@ -12,12 +12,17 @@ window.CONFIG = {
   // Nomor WhatsApp petugas, format internasional tanpa + (contoh: 6281234567890)
   WHATSAPP_PETUGAS: '',
   EMAIL: '',
-  ALAMAT: '[Alamat lengkap Bapelkes Mataram], Mataram, Nusa Tenggara Barat',
+  ALAMAT: 'Jl. Gora II, Selagalas, Kec. Sandubaya, Kota Mataram, Nusa Tenggara Barat',
   JAM_LAYANAN: '[Jam layanan petugas]',
 
   // Sesuaikan dengan aturan asrama
   JAM_CHECKIN: '[jam check-in]',
   JAM_CHECKOUT: '[jam check-out]',
+  // Foto (file .jpg di folder yang sama dengan index.html)
+  FOTO_GEDUNG: 'foto-gedung.jpg',
+  FOTO_KAMAR: ['foto-kamar-1.jpg', 'foto-kamar-2.jpg'],
+  FOTO_RESTO: 'foto-resto.jpg',
+
   TATA_TERTIB: [
     'Tunjukkan kode reservasi atau kode QR saat check-in.',
     'Dilarang merokok di dalam kamar dan area asrama.',

@@ -94,7 +94,7 @@ textarea.input { min-height: 84px; resize: vertical; }
 .hero .wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center; }
 .hero p { font-size: 18px; color: var(--redup); max-width: 34em; margin-top: 18px; }
 .hero .row { margin-top: 28px; }
-.hero-photo { aspect-ratio: 3 / 2; border-radius: 20px; background: #E4DACB center / cover no-repeat; display: flex; align-items: center; justify-content: center; color: var(--samar); border: 1px dashed #B9AB95; }
+.hero-photo { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 20px; background: #E4DACB; }
 .section { padding: 56px 0; }
 .section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
 .cards-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
@@ -233,6 +233,22 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
   body { background: #fff; }
 }
 
+/* Kamar & fasilitas */
+.feature { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 32px; align-items: center; background: var(--kertas); border: 1px solid var(--garis); border-radius: 20px; padding: 20px; }
+.feature-resto { margin-top: 28px; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+.feature h3 { font-size: 28px; }
+.photos { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+.photos img, .feature-photo { width: 100%; height: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; background: #E4DACB; }
+.photos img:first-child { aspect-ratio: auto; }
+.facts { display: flex; gap: 10px; flex-wrap: wrap; }
+.prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.price-box { border: 1px solid var(--garis); border-radius: 12px; padding: 14px; background: #fff; }
+.price-box b { display: block; font-family: var(--display); font-size: 26px; font-weight: 600; color: var(--tanah); }
+.type-pick-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.summary .total b { font-size: 20px; }
+@media (max-width: 900px) { .feature, .feature-resto { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .prices, .type-pick-2 { grid-template-columns: 1fr; } .photos { grid-template-columns: 1fr; } }
+
 </style>
 <style>
   .p-wrap { width: min(480px, 100%); margin: 0 auto; }
@@ -353,19 +369,35 @@ var Core = (function () {
     return out;
   }
 
+  function num(v) { var n = Number(String(v == null ? '' : v).replace(/[^\d]/g, '')); return isNaN(n) ? 0 : n; }
   function publicTipe(t) {
-    return { id: t.id, nama: t.nama, kapasitas: t.kapasitas, fasilitas: t.fasilitas, tarif: t.tarif, foto: t.foto };
+    return { id: t.id, nama: t.nama, kapasitas: t.kapasitas, fasilitas: t.fasilitas, tarif: num(t.tarif), tarif_sarapan: num(t.tarif_sarapan), foto: t.foto };
+  }
+  function hitungTotal(t, sarapan, jumlah, masuk, keluar) {
+    var tarif = sarapan === 'ya' ? num(t.tarif_sarapan) : num(t.tarif);
+    return tarif * jumlah * nights(masuk, keluar);
   }
   function publicRes(db, r) {
     var t = tipeOf(db, r.tipe);
     return {
       kode: r.kode, nama: r.nama, tipe: r.tipe, tipeNama: t ? t.nama : r.tipe, jumlah: r.jumlah,
-      masuk: r.masuk, keluar: r.keluar, status: r.status, billing: r.billing || '', catatan: r.catatan_petugas || ''
+      masuk: r.masuk, keluar: r.keluar, status: r.status, billing: r.billing || '', catatan: r.catatan_petugas || '',
+      sarapan: r.sarapan || '', total: num(r.total)
     };
   }
-  function makeKode(prefix, masuk, rand) {
-    return prefix + '-' + masuk.slice(2).replace(/-/g, '') + '-' + rand(4).toUpperCase();
+  // Kode pendek: MDL-4827 (tamu) atau PLT-3051 (pelatihan). Dijamin belum dipakai.
+  function makeKode(prefix, db, rand) {
+    var used = {};
+    db.reservasi.forEach(function (r) { used[String(r.kode).toUpperCase()] = true; });
+    for (var i = 0; i < 200; i++) {
+      var digits = rand(8).split('').map(function (c) { return c.charCodeAt(0) % 10; }).join('');
+      var len = i < 100 ? 4 : 5;
+      var k = prefix + '-' + String(1 + (Number(digits.slice(0, len)) % (Math.pow(10, len) - 1))).padStart(len, '0');
+      if (!used[k]) return k;
+    }
+    return prefix + '-' + Date.now().toString().slice(-6);
   }
+  function samaKode(a, b) { return String(a).toUpperCase().replace(/[^A-Z0-9]/g, '') === String(b).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
   function handle(db, action, p, ctx) {
     p = p || {};
@@ -392,7 +424,11 @@ var Core = (function () {
 
     switch (action) {
       case 'config':
-        return ok({ tipe: db.tipe.map(publicTipe) });
+        return ok({ tipe: db.tipe.map(function (t) {
+          var o = publicTipe(t);
+          o.jumlahKamar = db.kamar.filter(function (k) { return k.tipe === t.id; }).length;
+          return o;
+        }) });
 
       case 'ketersediaan': {
         var tipe = txt(p.tipe, 30);
@@ -409,7 +445,7 @@ var Core = (function () {
           nama: txt(p.nama, 100), instansi: txt(p.instansi, 150), hp: digits(p.hp).slice(0, 15),
           email: txt(p.email, 120), keperluan: txt(p.keperluan, 100), tipe: txt(p.tipe, 30),
           jumlah: parseInt(p.jumlah, 10), masuk: txt(p.masuk, 10), keluar: txt(p.keluar, 10),
-          catatan_tamu: txt(p.catatan, 300)
+          catatan_tamu: txt(p.catatan, 300), sarapan: (p.sarapan === true || p.sarapan === 'ya' || p.sarapan === 'true') ? 'ya' : 'tidak'
         };
         if (!r.nama) return fail('Nama pemesan wajib diisi.');
         if (r.hp.length < 9) return fail('Nomor WhatsApp belum lengkap.');
@@ -420,7 +456,8 @@ var Core = (function () {
         if (e1) return fail(e1);
         var sisa = minFree(db, r.tipe, r.masuk, r.keluar);
         if (sisa < r.jumlah) return fail(t.nama + ' hanya tersisa ' + sisa + ' kamar pada tanggal itu. Ubah tanggal atau jumlah kamar.');
-        r.kode = makeKode('MDL', r.masuk, ctx.rand);
+        r.kode = makeKode('MDL', db, ctx.rand);
+        r.total = hitungTotal(t, r.sarapan, r.jumlah, r.masuk, r.keluar);
         r.dibuat = ctx.now;
         r.status = 'menunggu';
         r.billing = ''; r.catatan_petugas = ''; r.kamar = '';
@@ -429,9 +466,9 @@ var Core = (function () {
       }
 
       case 'cek': {
-        var kode = txt(p.kode, 30).toUpperCase();
+        var kode = txt(p.kode, 30);
         var hp4 = digits(p.hp4).slice(-4);
-        var rc = find(db.reservasi, function (x) { return String(x.kode).toUpperCase() === kode; });
+        var rc = find(db.reservasi, function (x) { return x.hp && samaKode(x.kode, kode); });
         if (!rc || hp4.length !== 4 || digits(rc.hp).slice(-4) !== hp4) return fail('Kode reservasi atau 4 digit terakhir nomor HP tidak cocok.');
         return ok({ reservasi: publicRes(db, rc) });
       }
@@ -515,9 +552,9 @@ var Core = (function () {
         Object.keys(perTipe).forEach(function (tp2) {
           var rooms = perTipe[tp2];
           var rr = {
-            kode: makeKode('PLT', p.masuk, ctx.rand), dibuat: ctx.now, nama: pel, instansi: 'Bapelkes Mataram',
+            kode: makeKode('PLT', db, ctx.rand), dibuat: ctx.now, nama: pel, instansi: 'Bapelkes Mataram',
             hp: '', email: '', keperluan: 'Pelatihan internal', tipe: tp2, jumlah: rooms.length,
-            masuk: p.masuk, keluar: p.keluar, catatan_tamu: '', status: 'pelatihan', billing: '', catatan_petugas: '',
+            masuk: p.masuk, keluar: p.keluar, catatan_tamu: '', sarapan: '', total: 0, status: 'pelatihan', billing: '', catatan_petugas: '',
             kamar: rooms.map(function (k) { return k.no; }).join(', ')
           };
           insert('reservasi', rr);
@@ -552,7 +589,7 @@ var Core = (function () {
  */
 (function () {
   var C = window.CONFIG || {};
-  var DEMO_KEY = 'asrama-mandalika-demo-v1';
+  var DEMO_KEY = 'asrama-mandalika-demo-v2';
   var DEMO_PIN = '1234';
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -569,25 +606,20 @@ var Core = (function () {
   function seed() {
     var t = todayStr(), A = Core.addDays;
     var kamar = [];
-    ['101', '102', '103', '104'].forEach(function (n) { kamar.push({ no: 'M-' + n, tipe: 'vip', lantai: 1, kapasitas: 2, status: 'siap', catatan: '' }); });
-    ['105', '106', '107', '108', '201', '202', '203', '204', '205', '206'].forEach(function (n) { kamar.push({ no: 'M-' + n, tipe: 'standar', lantai: Number(n.charAt(0)), kapasitas: 2, status: 'siap', catatan: '' }); });
-    ['207', '208'].forEach(function (n) { kamar.push({ no: 'M-' + n, tipe: 'asrama', lantai: 2, kapasitas: 4, status: 'siap', catatan: '' }); });
+    for (var i = 1; i <= 25; i++) kamar.push({ no: 'K-' + (i < 10 ? '0' : '') + i, tipe: 'standar', lantai: '', kapasitas: 2, status: 'siap', catatan: '' });
     kamar[2].status = 'kotor'; kamar[6].status = 'perbaikan';
-    function res(kode, nama, instansi, tipe, jumlah, m, k, status) {
-      return { kode: kode, dibuat: t + ' 08:00', nama: nama, instansi: instansi, hp: '081200000000', email: '', keperluan: 'Kegiatan dinas', tipe: tipe, jumlah: jumlah, masuk: A(t, m), keluar: A(t, k), catatan_tamu: '', status: status, billing: '', catatan_petugas: '', kamar: '' };
+    function res(kode, nama, instansi, jumlah, m, k, status, sarapan) {
+      var total = (sarapan === 'ya' ? 300000 : 200000) * jumlah * Core.nights(A(t, m), A(t, k));
+      return { kode: kode, dibuat: t + ' 08:00', nama: nama, instansi: instansi, hp: '081200000000', email: '', keperluan: 'Kegiatan dinas', tipe: 'standar', jumlah: jumlah, masuk: A(t, m), keluar: A(t, k), sarapan: sarapan, total: total, catatan_tamu: '', status: status, billing: '', catatan_petugas: '', kamar: '' };
     }
     return {
-      tipe: [
-        { id: 'vip', nama: 'Kamar VIP', kapasitas: 2, fasilitas: 'Tempat tidur besar, AC, kamar mandi dalam, meja kerja', tarif: '[Tarif PNBP]', foto: '' },
-        { id: 'standar', nama: 'Kamar Standar', kapasitas: 2, fasilitas: 'Dua tempat tidur, AC, kamar mandi dalam, lemari', tarif: '[Tarif PNBP]', foto: '' },
-        { id: 'asrama', nama: 'Kamar Asrama', kapasitas: 4, fasilitas: 'Empat tempat tidur, kamar mandi bersama, loker', tarif: '[Tarif PNBP]', foto: '' }
-      ],
+      tipe: [{ id: 'standar', nama: 'Kamar Standar', kapasitas: 2, fasilitas: 'Dua tempat tidur single, meja kerja, lemari pakaian, handuk, pintu kaca menghadap taman', tarif: 200000, tarif_sarapan: 300000, foto: '' }],
       kamar: kamar,
       reservasi: [
-        res('MDL-DEMO-0001', 'Contoh Pemesan A', 'Dinas Kesehatan Kab. Lombok Tengah', 'standar', 4, 5, 7, 'menunggu'),
-        res('MDL-DEMO-0002', 'Contoh Pemesan B', 'Puskesmas [Nama]', 'asrama', 1, 8, 10, 'disetujui'),
-        res('MDL-DEMO-0003', 'Contoh Pemesan C', 'Tamu umum', 'vip', 1, 1, 3, 'lunas'),
-        res('MDL-DEMO-0004', 'Contoh Pemesan D', 'RSUD [Nama]', 'standar', 5, 12, 15, 'menunggu')
+        res('MDL-1024', 'Contoh Pemesan A', 'Dinas Kesehatan Kab. Lombok Tengah', 4, 5, 7, 'menunggu', 'ya'),
+        res('MDL-2317', 'Contoh Pemesan B', 'Puskesmas [Nama]', 2, 8, 10, 'disetujui', 'tidak'),
+        res('MDL-3380', 'Contoh Pemesan C', 'Tamu umum', 1, 1, 3, 'lunas', 'ya'),
+        res('MDL-4461', 'Contoh Pemesan D', 'RSUD [Nama]', 10, 12, 15, 'menunggu', 'ya')
       ],
       peserta: []
     };
@@ -634,6 +666,7 @@ var Core = (function () {
   var HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
   window.U = {
     today: todayStr,
+    rp: function (n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); },
     tgl: function (s, withDay) {
       if (!s) return '—';
       var d = new Date(s + 'T00:00:00Z');
