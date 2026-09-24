@@ -4,7 +4,7 @@
 window.CONFIG = {
   // URL Web App dari Google Apps Script (berakhiran /exec).
   // Biarkan kosong untuk MODE DEMO: data hanya tersimpan di browser yang sedang dipakai.
-  API_URL: '',
+    API_URL: 'https://script.google.com/macros/s/AKfycbzuACDyjeIkFdTgC_AeJ4C7SfibGi1YhlF8C5NjkChAvA10xZMUAAqu5VmP2_o8IcfU/exec',
 
   NAMA_ASRAMA: 'Asrama Mandalika',
   INSTANSI: 'Balai Pelatihan Kesehatan (Bapelkes) Mataram',
