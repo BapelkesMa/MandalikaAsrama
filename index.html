@@ -249,6 +249,12 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
 @media (max-width: 900px) { .feature, .feature-resto { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .prices, .type-pick-2 { grid-template-columns: 1fr; } .photos { grid-template-columns: 1fr; } }
 
+.pin-wrap { position: relative; }
+.pin-wrap .input { padding-right: 52px; }
+.pin-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; border: none; background: none; cursor: pointer; color: var(--redup); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+.pin-eye:hover { color: var(--laut); background: var(--laut-muda); }
+.nav a.btn-primary, .nav a.btn-primary:hover { color: #fff; }
+
 </style>
 </head>
 <body>
@@ -265,6 +271,7 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
       <a href="#cek">Cek status</a>
       <a href="#info">Kontak</a>
       <a class="btn btn-outline btn-sm" href="peserta.html">Info kamar peserta</a>
+      <a class="btn btn-primary btn-sm" href="admin.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Masuk petugas</a>
     </nav>
   </div>
 </header>
@@ -346,7 +353,7 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
               <div class="field"><label for="f-hp">No. WhatsApp</label><input class="input" id="f-hp" name="hp" type="tel" inputmode="tel" required autocomplete="tel" placeholder="08…"></div>
             </div>
             <div class="grid-2">
-              <div class="field"><label for="f-email">Email (opsional)</label><input class="input" id="f-email" name="email" type="email" autocomplete="email"></div>
+              <div class="field"><label for="f-email">Email untuk notifikasi</label><input class="input" id="f-email" name="email" type="email" autocomplete="email"></div>
               <div class="field"><label for="f-keperluan">Keperluan</label>
                 <select class="input" id="f-keperluan" name="keperluan">
                   <option>Kegiatan dinas</option><option>Rapat / pertemuan</option><option>Rombongan</option><option>Pribadi</option><option>Lainnya</option>
@@ -378,6 +385,7 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
             <span class="badge b-kuning" style="align-self:flex-start">Menunggu verifikasi petugas</span>
             <span class="kode" id="d-kode"></span>
             <p id="d-ringkas" class="muted"></p>
+            <p class="small" id="d-email"></p>
             <p class="small">Simpan kode ini. Petugas akan menghubungi WhatsApp Anda. Setelah disetujui, Anda menerima kode billing SIMPONI untuk pembayaran. Status bisa dicek kapan saja di bagian <a href="#cek">Cek status</a>.</p>
             <div class="row">
               <a class="btn btn-primary" id="d-wa" target="_blank" rel="noopener">Kabari petugas lewat WhatsApp</a>
@@ -572,6 +580,7 @@ var Core = (function () {
         };
         if (!r.nama) return fail('Nama pemesan wajib diisi.');
         if (r.hp.length < 9) return fail('Nomor WhatsApp belum lengkap.');
+        if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) return fail('Alamat email belum benar.');
         var t = tipeOf(db, r.tipe);
         if (!t) return fail('Pilih tipe kamar.');
         if (!(r.jumlah >= 1 && r.jumlah <= MAKS_KAMAR)) return fail('Jumlah kamar 1 sampai ' + MAKS_KAMAR + '.');
@@ -762,18 +771,20 @@ var Core = (function () {
       if (out.ops.inserts.length || out.ops.updates.length) demoSave(db);
       return new Promise(function (res) { setTimeout(function () { res(JSON.parse(JSON.stringify(out.result))); }, 150); });
     }
-    var req;
-    if (method === 'POST') {
-      var body = Object.assign({ action: action }, params);
-      // Tanpa header Content-Type agar tidak memicu preflight CORS di Apps Script
-      req = fetch(C.API_URL, { method: 'POST', body: JSON.stringify(body) });
-    } else {
-      var q = new URLSearchParams(Object.assign({ action: action }, params)).toString();
-      req = fetch(C.API_URL + (C.API_URL.indexOf('?') >= 0 ? '&' : '?') + q);
+    var sep = C.API_URL.indexOf('?') >= 0 ? '&' : '?';
+    var gagal = { ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.' };
+    function viaGet() {
+      var q = method === 'POST'
+        ? 'action=' + encodeURIComponent(action) + '&p=' + encodeURIComponent(JSON.stringify(params))
+        : new URLSearchParams(Object.assign({ action: action }, params)).toString();
+      return fetch(C.API_URL + sep + q).then(function (r) { return r.json(); });
     }
-    return req.then(function (r) { return r.json(); }).catch(function () {
-      return { ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.' };
-    });
+    if (method !== 'POST') return viaGet().catch(function () { return gagal; });
+    // Kirim dengan POST; bila diblokir browser/jaringan, ulangi lewat GET.
+    return fetch(C.API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action: action }, params)) })
+      .then(function (r) { return r.json(); })
+      .catch(function () { return viaGet(); })
+      .catch(function () { return gagal; });
   }
 
   window.API = {
@@ -1003,16 +1014,17 @@ var Core = (function () {
     API.post('pesan', {
       nama: f.nama.value, instansi: f.instansi.value, hp: f.hp.value, email: f.email.value,
       keperluan: f.keperluan.value, catatan: f.catatan.value, website: f.website.value,
-      tipe: S.pilih, sarapan: S.sarapan, jumlah: S.jumlah, masuk: S.ci, keluar: S.co
+      situs: location.href.split('#')[0], tipe: S.pilih, sarapan: S.sarapan, jumlah: S.jumlah, masuk: S.ci, keluar: S.co
     }).then(function (r) {
       btn.disabled = false; btn.textContent = 'Kirim pemesanan';
       if (!r.ok) { tampilError(r.error); muatSisa(); return; }
-      selesai(r.reservasi);
+      selesai(r.reservasi, f.email.value.trim(), r.emailTerkirim);
       f.reset();
     });
   });
 
-  function selesai(r) {
+  function selesai(r, email, terkirim) {
+    $('d-email').textContent = email ? (terkirim ? 'Konfirmasi juga sudah dikirim ke ' + email + '. Periksa folder Spam bila belum terlihat.' : 'Pemberitahuan berikutnya akan dikirim ke ' + email + '.') : '';
     $('booking-form').classList.add('hidden');
     var box = $('booking-done');
     box.classList.remove('hidden');

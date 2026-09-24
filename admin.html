@@ -249,6 +249,12 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
 @media (max-width: 900px) { .feature, .feature-resto { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .prices, .type-pick-2 { grid-template-columns: 1fr; } .photos { grid-template-columns: 1fr; } }
 
+.pin-wrap { position: relative; }
+.pin-wrap .input { padding-right: 52px; }
+.pin-eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; border: none; background: none; cursor: pointer; color: var(--redup); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+.pin-eye:hover { color: var(--laut); background: var(--laut-muda); }
+.nav a.btn-primary, .nav a.btn-primary:hover { color: #fff; }
+
 </style>
 </head>
 <body>
@@ -259,7 +265,15 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
       <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="6" width="28" height="28" rx="3" transform="rotate(45 20 20)" fill="#0E5563"/><rect x="13" y="13" width="14" height="14" transform="rotate(45 20 20)" fill="#C99A3B"/></svg>
       <span><span class="brand-name">Asrama Mandalika</span><span class="brand-sub">Panel petugas</span></span>
     </div>
-    <div class="field"><label for="pin">PIN petugas</label><input class="input" id="pin" type="password" autocomplete="current-password" required></div>
+    <div class="field"><label for="pin">PIN petugas</label>
+      <div class="pin-wrap">
+        <input class="input" id="pin" type="password" autocomplete="current-password" required>
+        <button type="button" class="pin-eye" id="lihat-pin" aria-label="Tampilkan PIN" aria-pressed="false">
+          <svg id="ikon-lihat" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="ikon-sembunyi" class="hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+        </button>
+      </div>
+    </div>
     <div id="login-err" class="alert alert-err hidden" role="alert"></div>
     <button class="btn btn-primary" type="submit" id="btn-login">Masuk</button>
     <a class="small" href="./">Kembali ke halaman tamu</a>
@@ -513,6 +527,7 @@ var Core = (function () {
         };
         if (!r.nama) return fail('Nama pemesan wajib diisi.');
         if (r.hp.length < 9) return fail('Nomor WhatsApp belum lengkap.');
+        if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) return fail('Alamat email belum benar.');
         var t = tipeOf(db, r.tipe);
         if (!t) return fail('Pilih tipe kamar.');
         if (!(r.jumlah >= 1 && r.jumlah <= MAKS_KAMAR)) return fail('Jumlah kamar 1 sampai ' + MAKS_KAMAR + '.');
@@ -703,18 +718,20 @@ var Core = (function () {
       if (out.ops.inserts.length || out.ops.updates.length) demoSave(db);
       return new Promise(function (res) { setTimeout(function () { res(JSON.parse(JSON.stringify(out.result))); }, 150); });
     }
-    var req;
-    if (method === 'POST') {
-      var body = Object.assign({ action: action }, params);
-      // Tanpa header Content-Type agar tidak memicu preflight CORS di Apps Script
-      req = fetch(C.API_URL, { method: 'POST', body: JSON.stringify(body) });
-    } else {
-      var q = new URLSearchParams(Object.assign({ action: action }, params)).toString();
-      req = fetch(C.API_URL + (C.API_URL.indexOf('?') >= 0 ? '&' : '?') + q);
+    var sep = C.API_URL.indexOf('?') >= 0 ? '&' : '?';
+    var gagal = { ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.' };
+    function viaGet() {
+      var q = method === 'POST'
+        ? 'action=' + encodeURIComponent(action) + '&p=' + encodeURIComponent(JSON.stringify(params))
+        : new URLSearchParams(Object.assign({ action: action }, params)).toString();
+      return fetch(C.API_URL + sep + q).then(function (r) { return r.json(); });
     }
-    return req.then(function (r) { return r.json(); }).catch(function () {
-      return { ok: false, error: 'Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.' };
-    });
+    if (method !== 'POST') return viaGet().catch(function () { return gagal; });
+    // Kirim dengan POST; bila diblokir browser/jaringan, ulangi lewat GET.
+    return fetch(C.API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ action: action }, params)) })
+      .then(function (r) { return r.json(); })
+      .catch(function () { return viaGet(); })
+      .catch(function () { return gagal; });
   }
 
   window.API = {
@@ -798,6 +815,15 @@ var Core = (function () {
       sessionStorage.setItem(PIN_KEY, pin);
       masuk();
     });
+  });
+  $('lihat-pin').addEventListener('click', function () {
+    var inp = $('pin'), tampil = inp.type === 'password';
+    inp.type = tampil ? 'text' : 'password';
+    this.setAttribute('aria-pressed', String(tampil));
+    this.setAttribute('aria-label', tampil ? 'Sembunyikan PIN' : 'Tampilkan PIN');
+    $('ikon-lihat').classList.toggle('hidden', tampil);
+    $('ikon-sembunyi').classList.toggle('hidden', !tampil);
+    inp.focus();
   });
   function masuk() { $('login').classList.add('hidden'); $('app').classList.remove('hidden'); }
   if (pin) muat().then(function (r) { if (r.ok) masuk(); else sessionStorage.removeItem(PIN_KEY); });
@@ -900,7 +926,8 @@ var Core = (function () {
       '<div class="field"><label for="m-billing">Kode billing SIMPONI</label><input class="input" id="m-billing" value="' + esc(r.billing) + '"></div></div>' +
       '<div class="field"><label for="m-kamar">Nomor kamar yang diberikan (pisahkan dengan koma)</label><input class="input" id="m-kamar" value="' + esc(r.kamar) + '" placeholder="M-105, M-106"></div>' +
       '<div class="field"><label for="m-catatan">Pesan untuk tamu (tampil di cek status)</label><textarea class="input" id="m-catatan">' + esc(r.catatan) + '</textarea></div>' +
-      '<div id="m-err" class="alert alert-err hidden" role="alert"></div>' +
+      (r.email ? '<label class="row small"><input type="checkbox" id="m-email" checked> Kirim pemberitahuan ke email tamu (' + esc(r.email) + ')</label>' : '<p class="small muted">Tamu tidak mengisi email; kabari lewat WhatsApp.</p>') +
+      '<div id="m-err" class="alert alert-err hidden" role="alert"></div><div id="m-ok" class="alert alert-ok hidden" role="status"></div>' +
       '<div class="row"><button type="button" class="btn btn-primary" id="m-simpan">Simpan perubahan</button>' +
       (r.hp ? '<a class="btn btn-outline" id="m-wa" target="_blank" rel="noopener">Kirim kabar lewat WhatsApp</a>' : '') + '</div></div>';
     m.classList.remove('hidden');
@@ -913,11 +940,15 @@ var Core = (function () {
     updWA();
     $('m-simpan').addEventListener('click', function () {
       var b = $('m-simpan'); b.disabled = true; b.textContent = 'Menyimpan…';
-      API.post('adminStatus', { pin: pin, kode: r.kode, status: $('m-status').value, billing: $('m-billing').value, kamar: $('m-kamar').value, catatan: $('m-catatan').value })
+      $('m-err').classList.add('hidden'); $('m-ok').classList.add('hidden');
+      var kirimEmail = !!($('m-email') && $('m-email').checked);
+      API.post('adminStatus', { pin: pin, kode: r.kode, status: $('m-status').value, billing: $('m-billing').value, kamar: $('m-kamar').value, catatan: $('m-catatan').value, kirimEmail: kirimEmail, situs: new URL('./', location.href).href })
         .then(function (res) {
           b.disabled = false; b.textContent = 'Simpan perubahan';
           if (!res.ok) { $('m-err').textContent = res.error; $('m-err').classList.remove('hidden'); return; }
           b.textContent = 'Tersimpan';
+          var info = kirimEmail ? (res.emailTerkirim ? 'Tersimpan. Email pemberitahuan terkirim ke ' + r.email + '.' : (API.demo ? 'Tersimpan. (Mode demo: email tidak dikirim.)' : 'Tersimpan, tetapi email gagal dikirim. Periksa izin email di Apps Script.')) : 'Tersimpan.';
+          $('m-ok').textContent = info; $('m-ok').classList.remove('hidden');
           muat();
         });
     });
