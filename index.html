@@ -913,8 +913,25 @@ var Core = (function () {
   U.demoBanner('Petugas bisa mencoba panel di <a href="admin.html">admin.html</a> dengan PIN ' + API.demoPin + '.');
 
   function isAula(t) { return t && t.satuan === 'hari'; }
-  // Foto bawaan aula (file .jpg di folder yang sama dengan index.html)
-  var FOTO_AULA_BAWAAN = { pejanggin: 'foto-aula-pejanggik.jpg', pejanggik: 'foto-aula-pejanggik.jpg', sugeng: 'foto-aula-sugeng.jpg' };
+  // Informasi aula tertanam di halaman, jadi selalu tampil walau data Sheets belum ada.
+  // Bila sheet "Tipe" berisi baris aula dengan id yang sama, kapasitas/tarif/fasilitas/foto dari sheet dipakai.
+  var AULA_BAWAAN = [
+    { id: 'pejanggin', nama: 'Aula Pejanggik', satuan: 'hari', kapasitas: '', tarif: 0, foto: 'foto-aula-pejanggik.jpg',
+      fasilitas: 'Ruang pertemuan dengan layar LED, meja dan kursi, pengeras suara, serta AC.' },
+    { id: 'sugeng', nama: 'Aula Sugeng Wiyono', satuan: 'hari', kapasitas: '', tarif: 0, foto: 'foto-aula-sugeng.jpg',
+      fasilitas: 'Aula besar dengan layar LED, meja pimpinan di depan, pengeras suara, mikrofon meja, serta meja dan kursi berbalut kain untuk peserta.' }
+  ];
+  function gabungAula(dariServer) {
+    return AULA_BAWAAN.map(function (a) {
+      var s = dariServer.filter(function (x) { return x.id === a.id; })[0];
+      if (!s) return a;
+      return {
+        id: a.id, nama: a.nama, satuan: 'hari',
+        kapasitas: s.kapasitas || a.kapasitas, tarif: s.tarif || a.tarif,
+        fasilitas: s.fasilitas || a.fasilitas, foto: s.foto || a.foto
+      };
+    });
+  }
   function tipeAktif() { return S.tipe.filter(function (x) { return x.id === S.pilih; })[0] || {}; }
   function aulaAktif() { return isAula(tipeAktif()); }
   function fotoList(t, fallback) {
@@ -933,12 +950,28 @@ var Core = (function () {
       (n ? '<b>' + U.rp(n) + '</b><span class="small muted">' + satuan + '</span>' : '<b class="tunggu">Hubungi petugas</b><span class="small muted">tarif sesuai ketentuan PNBP</span>') + '</div>';
   }
 
+  function renderAula(dariServer) {
+    var aula = gabungAula(dariServer || []);
+    $('daftar-aula').innerHTML = aula.map(function (t) {
+      return '<article class="aula-card">' +
+        (t.foto ? '<img src="' + encodeURI(t.foto) + '" alt="' + U.esc(t.nama) + '" loading="lazy">' : '') +
+        '<div class="aula-body"><h3>' + U.esc(t.nama) + '</h3>' +
+        (t.kapasitas ? '<div class="facts"><span class="pill">Kapasitas ' + U.esc(t.kapasitas) + ' orang</span></div>' : '') +
+        '<p class="muted">' + U.esc(t.fasilitas) + '</p>' +
+        '<div class="prices" style="grid-template-columns:1fr">' + hargaBox('Tarif sewa', t.tarif, 'per hari') + '</div>' +
+        kontakAula(t) + '</div></article>';
+    }).join('');
+  }
+  renderAula([]);   // tampil segera, lalu diperbarui bila data sheet tersedia
+
   // ---------- Daftar kamar & aula ----------
   API.get('config').then(function (r) {
-    if (!r.ok) { $('daftar-kamar').innerHTML = '<p class="alert alert-err">' + U.esc(r.error) + '</p>'; $('daftar-aula').innerHTML = ''; return; }
-    S.tipe = r.tipe;
-    var kamar = r.tipe.filter(function (t) { return !isAula(t); });
-    var aula = r.tipe.filter(isAula);
+    if (!r.ok) { $('daftar-kamar').innerHTML = '<p class="alert alert-err">' + U.esc(r.error) + '</p>'; return; }
+    // Aula tidak dipesan lewat formulir, jadi disaring keluar (juga bila server lama tidak menandainya)
+    var idAula = AULA_BAWAAN.map(function (a) { return a.id; });
+    S.tipe = r.tipe.filter(function (t) { return !isAula(t) && idAula.indexOf(t.id) < 0; });
+    var kamar = S.tipe;
+    renderAula(r.tipe);
 
     $('daftar-kamar').innerHTML = kamar.map(function (t, i) {
       var fotos = fotoList(t, i === 0 ? (C.FOTO_KAMAR || []) : []);
@@ -952,19 +985,6 @@ var Core = (function () {
         '<div class="prices">' + hargaBox('Tanpa sarapan', t.tarif, 'per kamar per malam') + hargaBox('Dengan sarapan', t.tarif_sarapan, 'per kamar per malam') + '</div>' +
         '<a class="btn btn-accent" style="align-self:flex-start" href="#pesan" data-pilih="' + U.esc(t.id) + '">Pesan kamar</a></div></div>';
     }).join('');
-
-    var warna = ['var(--laut)', 'var(--tanah)', 'var(--emas)'];
-    $('daftar-aula').innerHTML = aula.length ? aula.map(function (t, i) {
-      var cfg = (C.FOTO_AULA && C.FOTO_AULA[t.id]) || FOTO_AULA_BAWAAN[t.id];
-      var fotos = fotoList(t, cfg ? [cfg] : []);
-      return '<article class="aula-card">' +
-        (fotos.length ? '<img src="' + encodeURI(fotos[0]) + '" alt="' + U.esc(t.nama) + '" loading="lazy">' : '<div class="aula-band" style="background:' + warna[i % 3] + '"></div>') +
-        '<div class="aula-body"><h3>' + U.esc(t.nama) + '</h3>' +
-        (t.kapasitas ? '<div class="facts"><span class="pill">Kapasitas ' + U.esc(t.kapasitas) + ' orang</span></div>' : '') +
-        (t.fasilitas ? '<p class="muted">' + U.esc(t.fasilitas) + '</p>' : '<p class="muted">Informasi kapasitas dan fasilitas dapat ditanyakan kepada petugas.</p>') +
-        '<div class="prices" style="grid-template-columns:1fr">' + hargaBox('Tarif sewa', t.tarif, 'per hari') + '</div>' +
-        kontakAula(t) + '</div></article>';
-    }).join('') : '<p class="muted">Informasi aula belum tersedia.</p>';
 
     $('pilih-tipe').innerHTML = kamar.map(function (t) {
       var sub = isAula(t) ? 'Sewa per hari' + (t.kapasitas ? ' · ' + t.kapasitas + ' orang' : '') : (t.kapasitas ? t.kapasitas + ' orang per kamar' : 'Per malam');
