@@ -396,7 +396,7 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
             <div class="line"><span id="l-keluar">Keluar</span><b id="s-keluar">Belum dipilih</b></div>
             <div class="line"><span id="l-lama">Lama menginap</span><b id="s-malam">—</b></div>
             <div class="line total" style="border-top:1px solid #2A5E69;padding-top:12px"><span>Perkiraan total</span><b id="s-total">—</b></div>
-            <p class="note">Pembayaran dilakukan setelah pemesanan disetujui petugas, melalui kode billing SIMPONI. Setiap perubahan status dikirim ke email Anda.</p>
+            <p class="note">Pembayaran dilakukan dengan transfer bank setelah pemesanan disetujui petugas. Rincian rekening dan setiap perubahan status dikirim ke email Anda.</p>
             <div id="pesan-error" class="alert alert-err hidden" role="alert"></div>
             <button class="btn btn-gold" type="submit" id="kirim">Kirim pemesanan</button>
           </div>
@@ -411,7 +411,7 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
             <span class="kode" id="d-kode"></span>
             <p id="d-ringkas" class="muted"></p>
             <p class="small" id="d-email"></p>
-            <p class="small">Simpan kode ini. Setelah disetujui, Anda menerima kode billing SIMPONI untuk pembayaran. Status bisa dicek kapan saja di bagian <a href="#cek">Cek status</a>.</p>
+            <p class="small">Simpan kode ini. Setelah disetujui, Anda menerima email berisi total biaya dan rekening tujuan transfer. Status bisa dicek kapan saja di bagian <a href="#cek">Cek status</a>.</p>
             <div class="row">
               <a class="btn btn-primary" id="d-wa" target="_blank" rel="noopener">Kabari petugas lewat WhatsApp</a>
               <button type="button" class="btn btn-outline" id="d-lagi">Buat pemesanan lain</button>
@@ -428,7 +428,7 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
       <ol class="steps">
         <li><strong>Pilih tanggal dan kamar</strong><span class="muted small">Lihat sisa kamar di kalender, lalu isi data pemesan.</span></li>
         <li><strong>Verifikasi petugas</strong><span class="muted small">Petugas asrama memeriksa dan menyetujui pemesanan.</span></li>
-        <li><strong>Bayar lewat SIMPONI</strong><span class="muted small">Anda menerima kode billing PNBP, lalu kirim bukti bayar.</span></li>
+        <li><strong>Transfer pembayaran</strong><span class="muted small">Transfer ke rekening yang tertera di email persetujuan, lalu kirim bukti transfer.</span></li>
         <li><strong>Check-in</strong><span class="muted small">Tunjukkan kode reservasi atau kode QR di resepsionis.</span></li>
       </ol>
     </div>
@@ -813,6 +813,9 @@ var Core = (function () {
       var db = demoLoad();
       var out = Core.handle(db, action, params, { today: todayStr(), now: nowStr(), pin: DEMO_PIN, rand: rand });
       if (out.ops.inserts.length || out.ops.updates.length) demoSave(db);
+      if (out.result.ok && (action === 'config' || action === 'cek' || action === 'adminData')) {
+        out.result.rekening = { bank: 'Bank [nama bank]', nomor: '[nomor rekening]', nama: '[nama pemilik rekening]', teks: 'Bank [nama bank], No. [nomor rekening], a.n. [nama pemilik rekening]' };
+      }
       return new Promise(function (res) { setTimeout(function () { res(JSON.parse(JSON.stringify(out.result))); }, 150); });
     }
     var sep = C.API_URL.indexOf('?') >= 0 ? '&' : '?';
@@ -947,7 +950,7 @@ var Core = (function () {
   }
   function hargaBox(label, n, satuan) {
     return '<div class="price-box"><span class="small muted">' + label + '</span>' +
-      (n ? '<b>' + U.rp(n) + '</b><span class="small muted">' + satuan + '</span>' : '<b class="tunggu">Hubungi petugas</b><span class="small muted">tarif sesuai ketentuan PNBP</span>') + '</div>';
+      (n ? '<b>' + U.rp(n) + '</b><span class="small muted">' + satuan + '</span>' : '<b class="tunggu">Hubungi petugas</b><span class="small muted">tarif dapat ditanyakan</span>') + '</div>';
   }
 
   function renderAula(dariServer) {
@@ -1206,7 +1209,8 @@ var Core = (function () {
         '<dt>Tanggal</dt><dd>' + U.periode(x, true) + '</dd>' +
         (x.satuan === 'hari' ? '' : '<dt>Paket</dt><dd>' + (x.sarapan === 'ya' ? 'Dengan sarapan' : 'Tanpa sarapan') + '</dd>') +
         (x.total ? '<dt>Total</dt><dd>' + U.rp(x.total) + '</dd>' : '') +
-        (x.billing ? '<dt>Kode billing SIMPONI</dt><dd>' + U.esc(x.billing) + '</dd>' : '') +
+        (x.status === 'disetujui' && r.rekening ? '<dt>Transfer ke</dt><dd>' + U.esc(r.rekening.teks) + '</dd>' : '') +
+        (x.billing ? '<dt>Info pembayaran</dt><dd>' + U.esc(x.billing) + '</dd>' : '') +
         (x.catatan ? '<dt>Pesan petugas</dt><dd>' + U.esc(x.catatan) + '</dd>' : '') + '</dl>';
     });
   });

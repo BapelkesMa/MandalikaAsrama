@@ -255,6 +255,19 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
 .pin-eye:hover { color: var(--laut); background: var(--laut-muda); }
 .nav a.btn-primary, .nav a.btn-primary:hover { color: #fff; }
 
+/* Aula */
+.aula-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.aula-card { background: var(--kertas); border: 1px solid var(--garis); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; }
+.aula-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #E4DACB; }
+.aula-band { height: 10px; }
+.aula-body { padding: 22px; display: flex; flex-direction: column; gap: 12px; flex-grow: 1; }
+.aula-body h3 { font-size: 26px; }
+.aula-body .btn { align-self: flex-start; margin-top: auto; }
+.price-box .tunggu { font-family: var(--body); font-size: 16px; color: var(--redup); font-weight: 600; }
+.notif-log { font-size: 13px; background: #F5EFE4; border-radius: 8px; padding: 10px 12px; white-space: pre-line; color: var(--redup); }
+@media (max-width: 900px) { .aula-grid { grid-template-columns: 1fr; } }
+.aula-note { margin-top: 18px; padding: 14px 16px; border-left: 4px solid var(--emas); background: var(--kertas); border-radius: 8px; font-size: 15px; color: var(--redup); }
+
 </style>
 </head>
 <body>
@@ -302,7 +315,7 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
     <!-- RESERVASI -->
     <section id="v-reservasi" class="stack" style="gap:22px">
       <div class="row" style="justify-content:space-between">
-        <div><span class="muted small" id="hari-ini"></span><h1 style="font-size:36px">Reservasi</h1></div>
+        <div><span class="muted small" id="hari-ini"></span><h1 style="font-size:36px">Reservasi</h1><p class="small muted" id="rek-info" style="margin-top:6px"></p></div>
       </div>
       <div class="stats" id="stats"></div>
       <div class="card stack">
@@ -414,6 +427,9 @@ var Core = (function () {
   function find(list, fn) { for (var i = 0; i < list.length; i++) if (fn(list[i])) return list[i]; return null; }
 
   function tipeOf(db, id) { return find(db.tipe, function (t) { return t.id === id; }); }
+  // Aula disewa per hari; kamar per malam.
+  function isAula(t) { return !!t && (String(t.kategori).toLowerCase() === 'aula' || String(t.satuan).toLowerCase() === 'hari'); }
+  function isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '')); }
   function roomsOf(db, tipe) { return db.kamar.filter(function (k) { return k.tipe === tipe && k.status !== 'perbaikan'; }); }
   function bookedOn(db, tipe, d, exceptKode) {
     var s = 0;
@@ -438,6 +454,7 @@ var Core = (function () {
     });
     var out = [];
     db.tipe.forEach(function (t) {
+      if (isAula(t)) return;
       var free = minFree(db, t.id, masuk, keluar);
       var cand = roomsOf(db, t.id).filter(function (k) { return !taken[k.no]; });
       cand.slice(0, Math.max(0, free)).forEach(function (k) {
@@ -449,16 +466,18 @@ var Core = (function () {
 
   function num(v) { var n = Number(String(v == null ? '' : v).replace(/[^\d]/g, '')); return isNaN(n) ? 0 : n; }
   function publicTipe(t) {
-    return { id: t.id, nama: t.nama, kapasitas: t.kapasitas, fasilitas: t.fasilitas, tarif: num(t.tarif), tarif_sarapan: num(t.tarif_sarapan), foto: t.foto };
+    var aula = isAula(t);
+    return { id: t.id, nama: t.nama, kategori: aula ? 'aula' : 'kamar', satuan: aula ? 'hari' : 'malam', kapasitas: t.kapasitas, fasilitas: t.fasilitas, tarif: num(t.tarif), tarif_sarapan: aula ? 0 : num(t.tarif_sarapan), foto: t.foto };
   }
   function hitungTotal(t, sarapan, jumlah, masuk, keluar) {
-    var tarif = sarapan === 'ya' ? num(t.tarif_sarapan) : num(t.tarif);
+    var tarif = (sarapan === 'ya' && !isAula(t)) ? num(t.tarif_sarapan) : num(t.tarif);
     return tarif * jumlah * nights(masuk, keluar);
   }
   function publicRes(db, r) {
     var t = tipeOf(db, r.tipe);
     return {
       kode: r.kode, nama: r.nama, tipe: r.tipe, tipeNama: t ? t.nama : r.tipe, jumlah: r.jumlah,
+      satuan: isAula(t) ? 'hari' : 'malam', kategori: isAula(t) ? 'aula' : 'kamar',
       masuk: r.masuk, keluar: r.keluar, status: r.status, billing: r.billing || '', catatan: r.catatan_petugas || '',
       sarapan: r.sarapan || '', total: num(r.total)
     };
@@ -527,15 +546,17 @@ var Core = (function () {
         };
         if (!r.nama) return fail('Nama pemesan wajib diisi.');
         if (r.hp.length < 9) return fail('Nomor WhatsApp belum lengkap.');
-        if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) return fail('Alamat email belum benar.');
+        if (!r.email) return fail('Email wajib diisi agar Anda menerima pemberitahuan setiap tahap.');
+        if (!isEmail(r.email)) return fail('Alamat email belum benar.');
         var t = tipeOf(db, r.tipe);
-        if (!t) return fail('Pilih tipe kamar.');
+        if (!t) return fail('Pilih kamar atau aula yang ingin dipesan.');
+        if (isAula(t)) { r.jumlah = 1; r.sarapan = 'tidak'; }
         if (!(r.jumlah >= 1 && r.jumlah <= MAKS_KAMAR)) return fail('Jumlah kamar 1 sampai ' + MAKS_KAMAR + '.');
         var e1 = checkRange(r.masuk, r.keluar);
         if (e1) return fail(e1);
         var sisa = minFree(db, r.tipe, r.masuk, r.keluar);
-        if (sisa < r.jumlah) return fail(t.nama + ' hanya tersisa ' + sisa + ' kamar pada tanggal itu. Ubah tanggal atau jumlah kamar.');
-        r.kode = makeKode('MDL', db, ctx.rand);
+        if (sisa < r.jumlah) return fail(isAula(t) ? t.nama + ' sudah dipesan pada sebagian tanggal itu. Pilih tanggal lain.' : t.nama + ' hanya tersisa ' + sisa + ' kamar pada tanggal itu. Ubah tanggal atau jumlah kamar.');
+        r.kode = makeKode(isAula(t) ? 'AUL' : 'MDL', db, ctx.rand);
         r.total = hitungTotal(t, r.sarapan, r.jumlah, r.masuk, r.keluar);
         r.dibuat = ctx.now;
         r.status = 'menunggu';
@@ -578,7 +599,7 @@ var Core = (function () {
           reservasi: res.map(function (x) {
             var o = publicRes(db, x);
             o.instansi = x.instansi; o.hp = x.hp; o.email = x.email; o.keperluan = x.keperluan;
-            o.catatanTamu = x.catatan_tamu; o.dibuat = x.dibuat; o.kamar = x.kamar;
+            o.catatanTamu = x.catatan_tamu; o.dibuat = x.dibuat; o.kamar = x.kamar; o.notifikasi = x.notifikasi || '';
             return o;
           }),
           pelatihan: Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return String(b.masuk).localeCompare(String(a.masuk)); })
@@ -597,6 +618,10 @@ var Core = (function () {
         update('reservasi', ra, { status: st, billing: txt(p.billing, 60), catatan_petugas: txt(p.catatan, 300), kamar: txt(p.kamar, 200) });
         return ok({ reservasi: publicRes(db, ra) });
       }
+
+      case 'adminKirimUlang':
+        // Di server, perintah ini ditangani Apps Script. Di mode demo tidak ada email.
+        return ok({ email: { terkirim: false, alasan: 'Mode demo' } });
 
       case 'adminKamar': {
         var kk = find(db.kamar, function (k) { return k.no === p.no; });
@@ -657,7 +682,7 @@ var Core = (function () {
     }
   }
 
-  return { handle: handle, addDays: addDays, nights: nights, STATUS: STATUS, KAMAR_STATUS: KAMAR_STATUS };
+  return { handle: handle, addDays: addDays, nights: nights, isAula: isAula, STATUS: STATUS, KAMAR_STATUS: KAMAR_STATUS };
 })();
 
 </script>
@@ -668,7 +693,7 @@ var Core = (function () {
  */
 (function () {
   var C = window.CONFIG || {};
-  var DEMO_KEY = 'asrama-mandalika-demo-v2';
+  var DEMO_KEY = 'asrama-mandalika-demo-v3';
   var DEMO_PIN = '1234';
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -687,18 +712,25 @@ var Core = (function () {
     var kamar = [];
     for (var i = 1; i <= 25; i++) kamar.push({ no: 'K-' + (i < 10 ? '0' : '') + i, tipe: 'standar', lantai: '', kapasitas: 2, status: 'siap', catatan: '' });
     kamar[2].status = 'kotor'; kamar[6].status = 'perbaikan';
+    kamar.push({ no: 'AULA-PEJANGGIN', tipe: 'pejanggin', lantai: '', kapasitas: '', status: 'siap', catatan: '' });
+    kamar.push({ no: 'AULA-SUGENG', tipe: 'sugeng', lantai: '', kapasitas: '', status: 'siap', catatan: '' });
     function res(kode, nama, instansi, jumlah, m, k, status, sarapan) {
       var total = (sarapan === 'ya' ? 300000 : 200000) * jumlah * Core.nights(A(t, m), A(t, k));
-      return { kode: kode, dibuat: t + ' 08:00', nama: nama, instansi: instansi, hp: '081200000000', email: '', keperluan: 'Kegiatan dinas', tipe: 'standar', jumlah: jumlah, masuk: A(t, m), keluar: A(t, k), sarapan: sarapan, total: total, catatan_tamu: '', status: status, billing: '', catatan_petugas: '', kamar: '' };
+      return { kode: kode, dibuat: t + ' 08:00', nama: nama, instansi: instansi, hp: '081200000000', email: 'contoh@contoh.id', keperluan: 'Kegiatan dinas', tipe: 'standar', jumlah: jumlah, masuk: A(t, m), keluar: A(t, k), sarapan: sarapan, total: total, catatan_tamu: '', status: status, billing: '', catatan_petugas: '', kamar: '' };
     }
     return {
-      tipe: [{ id: 'standar', nama: 'Kamar Standar', kapasitas: 2, fasilitas: 'Dua tempat tidur single, meja kerja, lemari pakaian, handuk, pintu kaca menghadap taman', tarif: 200000, tarif_sarapan: 300000, foto: '' }],
+      tipe: [
+        { id: 'standar', nama: 'Kamar Standar', kategori: 'kamar', satuan: 'malam', kapasitas: 2, fasilitas: 'Dua tempat tidur single, meja kerja, lemari pakaian, handuk, pintu kaca menghadap taman', tarif: 200000, tarif_sarapan: 300000, foto: '' },
+        { id: 'pejanggin', nama: 'Aula Pejanggik', kategori: 'aula', satuan: 'hari', kapasitas: '', fasilitas: '', tarif: 0, tarif_sarapan: 0, foto: '' },
+        { id: 'sugeng', nama: 'Aula Sugeng Wiyono', kategori: 'aula', satuan: 'hari', kapasitas: '', fasilitas: '', tarif: 0, tarif_sarapan: 0, foto: '' }
+      ],
       kamar: kamar,
       reservasi: [
         res('MDL-1024', 'Contoh Pemesan A', 'Dinas Kesehatan Kab. Lombok Tengah', 4, 5, 7, 'menunggu', 'ya'),
         res('MDL-2317', 'Contoh Pemesan B', 'Puskesmas [Nama]', 2, 8, 10, 'disetujui', 'tidak'),
         res('MDL-3380', 'Contoh Pemesan C', 'Tamu umum', 1, 1, 3, 'lunas', 'ya'),
-        res('MDL-4461', 'Contoh Pemesan D', 'RSUD [Nama]', 10, 12, 15, 'menunggu', 'ya')
+        res('MDL-4461', 'Contoh Pemesan D', 'RSUD [Nama]', 10, 12, 15, 'menunggu', 'ya'),
+        (function () { var x = res('AUL-5120', 'Contoh Pemesan E', 'Dinas Kesehatan Provinsi NTB', 1, 6, 8, 'menunggu', 'tidak'); x.tipe = 'pejanggin'; x.total = 0; x.keperluan = 'Rapat / pertemuan'; return x; })()
       ],
       peserta: []
     };
@@ -716,6 +748,9 @@ var Core = (function () {
       var db = demoLoad();
       var out = Core.handle(db, action, params, { today: todayStr(), now: nowStr(), pin: DEMO_PIN, rand: rand });
       if (out.ops.inserts.length || out.ops.updates.length) demoSave(db);
+      if (out.result.ok && (action === 'config' || action === 'cek' || action === 'adminData')) {
+        out.result.rekening = { bank: 'Bank [nama bank]', nomor: '[nomor rekening]', nama: '[nama pemilik rekening]', teks: 'Bank [nama bank], No. [nomor rekening], a.n. [nama pemilik rekening]' };
+      }
       return new Promise(function (res) { setTimeout(function () { res(JSON.parse(JSON.stringify(out.result))); }, 150); });
     }
     var sep = C.API_URL.indexOf('?') >= 0 ? '&' : '?';
@@ -748,6 +783,16 @@ var Core = (function () {
   window.U = {
     today: todayStr,
     rp: function (n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); },
+    // Tanggal akhir yang ditampilkan: aula = hari terakhir kegiatan, kamar = tanggal check-out.
+    akhir: function (r) { return r.satuan === 'hari' ? Core.addDays(r.keluar, -1) : r.keluar; },
+    lama: function (r) { return Core.nights(r.masuk, r.keluar) + (r.satuan === 'hari' ? ' hari' : ' malam'); },
+    periode: function (r, withDay) {
+      var a = window.U.akhir(r);
+      return window.U.tgl(r.masuk, withDay) + (a !== r.masuk ? ' – ' + window.U.tgl(a, withDay) : '') + ' (' + window.U.lama(r) + ')';
+    },
+    dipesan: function (r) {
+      return r.satuan === 'hari' ? r.tipeNama : r.jumlah + ' kamar' + (r.sarapan ? (r.sarapan === 'ya' ? ', dengan sarapan' : ', tanpa sarapan') : '');
+    },
     tgl: function (s, withDay) {
       if (!s) return '—';
       var d = new Date(s + 'T00:00:00Z');
@@ -838,14 +883,20 @@ var Core = (function () {
     });
   });
 
-  function renderSemua() { renderStats(); renderTabs(); renderRes(); renderKamar(); renderTipeOpt(); renderTersimpan(); }
+  function renderRekening() {
+    var el = $('rek-info'); if (!el) return;
+    el.innerHTML = D.rekening ? 'Rekening transfer: <b>' + esc(D.rekening.teks) + '</b>' :
+      '<span class="badge b-kuning">Rekening transfer belum diisi</span> Tambahkan REKENING_BANK, REKENING_NOMOR, dan REKENING_NAMA di Properti skrip Apps Script.';
+  }
+  function renderSemua() { renderRekening(); renderStats(); renderTabs(); renderRes(); renderKamar(); renderTipeOpt(); renderTersimpan(); }
 
   // ---------- Reservasi ----------
   $('hari-ini').textContent = U.tgl(U.today(), true);
   function tipeNama(id) { var t = (D.tipe || []).filter(function (x) { return x.id === id; })[0]; return t ? t.nama : id; }
 
+  function isAulaId(id) { var t = (D.tipe || []).filter(function (x) { return x.id === id; })[0]; return !!t && t.satuan === 'hari'; }
   function renderStats() {
-    var k = D.kamar, n = function (s) { return k.filter(function (x) { return x.status === s; }).length; };
+    var k = D.kamar.filter(function (x) { return !isAulaId(x.tipe); }), n = function (s) { return k.filter(function (x) { return x.status === s; }).length; };
     var tunggu = D.reservasi.filter(function (r) { return r.status === 'menunggu'; }).length;
     var bayar = D.reservasi.filter(function (r) { return r.status === 'disetujui'; }).length;
     var items = [
@@ -887,8 +938,10 @@ var Core = (function () {
       var st = U.status[r.status] || [r.status, 'b-abu'];
       return '<tr><td><b>' + esc(r.kode) + '</b><span class="sub">' + esc(r.dibuat) + '</span></td>' +
         '<td><b>' + esc(r.nama) + '</b><span class="sub">' + esc(r.instansi || '') + (r.hp ? ' · ' + esc(r.hp) : '') + '</span></td>' +
-        '<td>' + esc(r.jumlah) + ' kamar' + (r.sarapan ? '<span class="sub">' + (r.sarapan === 'ya' ? 'Dengan sarapan' : 'Tanpa sarapan') + (r.total ? ' · ' + U.rp(r.total) : '') + '</span>' : '') + (r.kamar ? '<span class="sub">' + esc(r.kamar) + '</span>' : '') + '</td>' +
-        '<td>' + U.tgl(r.masuk) + '<span class="sub">s.d. ' + U.tgl(r.keluar) + ' · ' + Core.nights(r.masuk, r.keluar) + ' malam</span></td>' +
+        '<td>' + (r.satuan === 'hari' ? '<b>' + esc(r.tipeNama) + '</b>' : esc(r.jumlah) + ' kamar') +
+          (r.satuan === 'hari' ? (r.total ? '<span class="sub">' + U.rp(r.total) + '</span>' : '') : (r.sarapan ? '<span class="sub">' + (r.sarapan === 'ya' ? 'Dengan sarapan' : 'Tanpa sarapan') + (r.total ? ' · ' + U.rp(r.total) : '') + '</span>' : '')) +
+          (r.kamar ? '<span class="sub">' + esc(r.kamar) + '</span>' : '') + '</td>' +
+        '<td>' + U.tgl(r.masuk) + '<span class="sub">' + (U.akhir(r) !== r.masuk ? 's.d. ' + U.tgl(U.akhir(r)) + ' · ' : '') + U.lama(r) + '</span></td>' +
         '<td><span class="badge ' + st[1] + '">' + esc(st[0]) + '</span></td>' +
         '<td><button type="button" class="btn btn-outline btn-sm" data-kelola="' + esc(r.kode) + '">Kelola</button></td></tr>';
     }).join('') : '<tr><td colspan="6" class="muted">Tidak ada reservasi di daftar ini.</td></tr>';
@@ -898,10 +951,10 @@ var Core = (function () {
   });
 
   function pesanWA(r, st, billing, catatan) {
-    var dasar = 'pemesanan ' + r.kode + ' (' + r.jumlah + ' kamar ' + (r.sarapan === 'ya' ? 'dengan' : 'tanpa') + ' sarapan, ' + U.tgl(r.masuk) + ' s.d. ' + U.tgl(r.keluar) + ')';
+    var dasar = 'pemesanan ' + r.kode + ' (' + U.dipesan(r) + ', ' + U.periode(r) + ')';
     var t = {
       menunggu: 'Halo ' + r.nama + ', ' + dasar + ' sudah kami terima dan sedang diperiksa petugas Asrama Mandalika.',
-      disetujui: 'Halo ' + r.nama + ', ' + dasar + ' telah DISETUJUI. Total pembayaran ' + U.rp(r.total) + '. Silakan bayar melalui kode billing SIMPONI: ' + (billing || '[kode billing]') + '. Setelah membayar, mohon kirim bukti bayar ke nomor ini.',
+      disetujui: 'Halo ' + r.nama + ', ' + dasar + ' telah DISETUJUI. ' + (r.total ? 'Total pembayaran ' + U.rp(r.total) + '. ' : '') + 'Silakan transfer ke ' + (D.rekening ? 'rekening ' + D.rekening.teks : '[rekening tujuan]') + '.' + (billing ? ' ' + billing + '.' : '') + ' Setelah transfer, mohon kirim bukti transfer ke nomor ini dengan menyebutkan kode ' + r.kode + '.',
       lunas: 'Halo ' + r.nama + ', pembayaran untuk ' + dasar + ' telah kami terima. Tunjukkan kode ' + r.kode + ' saat check-in di resepsionis Asrama Mandalika. Sampai jumpa!',
       ditolak: 'Halo ' + r.nama + ', mohon maaf ' + dasar + ' belum dapat kami proses.',
       batal: 'Halo ' + r.nama + ', ' + dasar + ' telah dibatalkan.',
@@ -918,18 +971,21 @@ var Core = (function () {
       '<button type="button" class="icon-btn" data-tutup aria-label="Tutup"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
       '<dl class="dl"><dt>Pemesan</dt><dd>' + esc(r.nama) + '</dd><dt>Instansi</dt><dd>' + esc(r.instansi || '—') + '</dd>' +
       '<dt>WhatsApp</dt><dd>' + esc(r.hp || '—') + '</dd><dt>Email</dt><dd>' + esc(r.email || '—') + '</dd>' +
-      '<dt>Keperluan</dt><dd>' + esc(r.keperluan || '—') + '</dd><dt>Kamar</dt><dd>' + esc(r.tipeNama) + ' × ' + esc(r.jumlah) + '</dd>' +
-      (r.sarapan ? '<dt>Paket</dt><dd>' + (r.sarapan === 'ya' ? 'Dengan sarapan' : 'Tanpa sarapan') + '</dd><dt>Total</dt><dd>' + U.rp(r.total) + '</dd>' : '') +
-      '<dt>Tanggal</dt><dd>' + U.tgl(r.masuk, true) + ' – ' + U.tgl(r.keluar, true) + ' (' + Core.nights(r.masuk, r.keluar) + ' malam)</dd>' +
+      '<dt>Keperluan</dt><dd>' + esc(r.keperluan || '—') + '</dd><dt>Dipesan</dt><dd>' + esc(r.tipeNama) + (r.satuan === 'hari' ? '' : ' × ' + esc(r.jumlah)) + '</dd>' +
+      (r.satuan !== 'hari' && r.sarapan ? '<dt>Paket</dt><dd>' + (r.sarapan === 'ya' ? 'Dengan sarapan' : 'Tanpa sarapan') + '</dd>' : '') +
+      '<dt>Biaya</dt><dd>' + (r.total ? U.rp(r.total) : 'Belum ditentukan') + '</dd>' +
+      '<dt>Tanggal</dt><dd>' + U.periode(r, true) + '</dd>' +
       (r.catatanTamu ? '<dt>Catatan tamu</dt><dd>' + esc(r.catatanTamu) + '</dd>' : '') + '</dl>' +
       '<div class="grid-2"><div class="field"><label for="m-status">Status</label><select class="input" id="m-status">' + opsi + '</select></div>' +
-      '<div class="field"><label for="m-billing">Kode billing SIMPONI</label><input class="input" id="m-billing" value="' + esc(r.billing) + '"></div></div>' +
-      '<div class="field"><label for="m-kamar">Nomor kamar yang diberikan (pisahkan dengan koma)</label><input class="input" id="m-kamar" value="' + esc(r.kamar) + '" placeholder="M-105, M-106"></div>' +
+      '<div class="field"><label for="m-billing">Info pembayaran (opsional)</label><input class="input" id="m-billing" value="' + esc(r.billing) + '" placeholder="mis. Transfer paling lambat 3 Okt"></div></div>' +
+      (r.satuan === 'hari' ? '<input type="hidden" id="m-kamar" value="' + esc(r.kamar) + '">' : '<div class="field"><label for="m-kamar">Nomor kamar yang diberikan (pisahkan dengan koma)</label><input class="input" id="m-kamar" value="' + esc(r.kamar) + '" placeholder="K-05, K-06"></div>') +
       '<div class="field"><label for="m-catatan">Pesan untuk tamu (tampil di cek status)</label><textarea class="input" id="m-catatan">' + esc(r.catatan) + '</textarea></div>' +
-      (r.email ? '<label class="row small"><input type="checkbox" id="m-email" checked> Kirim pemberitahuan ke email tamu (' + esc(r.email) + ')</label>' : '<p class="small muted">Tamu tidak mengisi email; kabari lewat WhatsApp.</p>') +
+      (r.email ? '<label class="row small"><input type="checkbox" id="m-email" checked> Kirim pemberitahuan ke email pemesan (' + esc(r.email) + ')</label>' : '<p class="small muted">Pemesan tidak mengisi email; kabari lewat WhatsApp.</p>') +
+      (r.email ? '<div class="stack" style="gap:6px"><span class="label">Riwayat email</span><div class="notif-log" id="m-log">' + (r.notifikasi ? esc(r.notifikasi) : 'Belum ada catatan pengiriman email.') + '</div></div>' : '') +
       '<div id="m-err" class="alert alert-err hidden" role="alert"></div><div id="m-ok" class="alert alert-ok hidden" role="status"></div>' +
       '<div class="row"><button type="button" class="btn btn-primary" id="m-simpan">Simpan perubahan</button>' +
-      (r.hp ? '<a class="btn btn-outline" id="m-wa" target="_blank" rel="noopener">Kirim kabar lewat WhatsApp</a>' : '') + '</div></div>';
+      (r.hp ? '<a class="btn btn-outline" id="m-wa" target="_blank" rel="noopener">Kirim kabar lewat WhatsApp</a>' : '') +
+      (r.email ? '<button type="button" class="btn btn-outline" id="m-ulang">Kirim ulang email status ini</button>' : '') + '</div></div>';
     m.classList.remove('hidden');
     $('m-status').focus();
     function updWA() {
@@ -947,12 +1003,34 @@ var Core = (function () {
           b.disabled = false; b.textContent = 'Simpan perubahan';
           if (!res.ok) { $('m-err').textContent = res.error; $('m-err').classList.remove('hidden'); return; }
           b.textContent = 'Tersimpan';
-          var info = kirimEmail ? (res.emailTerkirim ? 'Tersimpan. Email pemberitahuan terkirim ke ' + r.email + '.' : (API.demo ? 'Tersimpan. (Mode demo: email tidak dikirim.)' : 'Tersimpan, tetapi email gagal dikirim. Periksa izin email di Apps Script.')) : 'Tersimpan.';
-          $('m-ok').textContent = info; $('m-ok').classList.remove('hidden');
+          tampilHasilEmail(kirimEmail ? res.email : null, 'Tersimpan.');
           muat();
         });
     });
   }
+  function tampilHasilEmail(e, awal) {
+    var ok = $('m-ok'), err = $('m-err');
+    if (!e) { ok.textContent = awal; ok.classList.remove('hidden'); return; }
+    if (e.terkirim) { ok.textContent = awal + ' Email pemberitahuan terkirim ke ' + e.ke + '.'; ok.classList.remove('hidden'); return; }
+    if (API.demo) { ok.textContent = awal + ' (Mode demo: email tidak dikirim.)'; ok.classList.remove('hidden'); return; }
+    err.textContent = awal + ' Namun email GAGAL dikirim: ' + (e.alasan || 'sebab tidak diketahui') + '. Pastikan fungsi setup sudah dijalankan dan deployment memakai versi terbaru.';
+    err.classList.remove('hidden');
+  }
+  $('modal').addEventListener('click', function (e) {
+    var b = e.target.closest('#m-ulang'); if (!b) return;
+    var kode = $('m-title').textContent;
+    b.disabled = true; b.textContent = 'Mengirim…';
+    $('m-err').classList.add('hidden'); $('m-ok').classList.add('hidden');
+    API.post('adminKirimUlang', { pin: pin, kode: kode, situs: new URL('./', location.href).href }).then(function (res) {
+      b.disabled = false; b.textContent = 'Kirim ulang email status ini';
+      if (!res.ok) { $('m-err').textContent = res.error; $('m-err').classList.remove('hidden'); return; }
+      tampilHasilEmail(res.email, '');
+      muat().then(function () {
+        var r = D.reservasi.filter(function (x) { return x.kode === kode; })[0];
+        if (r && $('m-log')) $('m-log').textContent = r.notifikasi || 'Belum ada catatan pengiriman email.';
+      });
+    });
+  });
   function tutupModal() { $('modal').classList.add('hidden'); $('modal').innerHTML = ''; }
   $('modal').addEventListener('click', function (e) { if (e.target.id === 'modal' || e.target.closest('[data-tutup]')) tutupModal(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('modal').classList.contains('hidden')) tutupModal(); });
@@ -961,9 +1039,12 @@ var Core = (function () {
   var KLABEL = { siap: 'Siap huni', terisi: 'Terisi', kotor: 'Perlu dibersihkan', perbaikan: 'Perbaikan' };
   function renderKamar() {
     var lantai = {};
-    D.kamar.forEach(function (k) { (lantai[k.lantai || '-'] = lantai[k.lantai || '-'] || []).push(k); });
-    $('kamar-list').innerHTML = Object.keys(lantai).sort().map(function (l) {
-      return '<div class="card stack"><b>Lantai ' + esc(l) + '</b><div class="rooms-grid">' + lantai[l].map(function (k) {
+    D.kamar.forEach(function (k) {
+      var g = isAulaId(k.tipe) ? 'Aula' : (k.lantai ? 'Lantai ' + k.lantai : 'Kamar');
+      (lantai[g] = lantai[g] || []).push(k);
+    });
+    $('kamar-list').innerHTML = Object.keys(lantai).sort(function (a, b) { return (a === 'Aula') - (b === 'Aula') || a.localeCompare(b); }).map(function (l) {
+      return '<div class="card stack"><b>' + esc(l) + '</b><div class="rooms-grid">' + lantai[l].map(function (k) {
         return '<div class="rtile k-' + esc(k.status) + '"><b>' + esc(k.no) + '</b><span class="small">' + esc(tipeNama(k.tipe)) + '</span>' +
           '<label class="sr-only" for="ks-' + esc(k.no) + '">Status ' + esc(k.no) + '</label><select id="ks-' + esc(k.no) + '" data-kamar="' + esc(k.no) + '">' +
           Core.KAMAR_STATUS.map(function (s) { return '<option value="' + s + '"' + (s === k.status ? ' selected' : '') + '>' + KLABEL[s] + '</option>'; }).join('') +
@@ -984,8 +1065,9 @@ var Core = (function () {
   // ---------- Rooming list ----------
   function renderTipeOpt() {
     if ($('opt-tipe').children.length) return;
-    if (D.tipe.length < 2) $('opt-tipe').classList.add('hidden');
-    $('opt-tipe').innerHTML = '<span>Tipe kamar yang dipakai:</span>' + D.tipe.map(function (t) {
+    var kamarTipe = D.tipe.filter(function (t) { return t.satuan !== 'hari'; });
+    if (kamarTipe.length < 2) $('opt-tipe').classList.add('hidden');
+    $('opt-tipe').innerHTML = '<span>Tipe kamar yang dipakai:</span>' + kamarTipe.map(function (t) {
       return '<label class="row" style="gap:6px"><input type="checkbox" data-opt-tipe="' + esc(t.id) + '"' + ' checked' + '> ' + esc(t.nama) + '</label>';
     }).join('');
   }

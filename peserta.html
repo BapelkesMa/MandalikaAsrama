@@ -255,6 +255,19 @@ td .sub { display: block; font-size: 13px; color: var(--samar); }
 .pin-eye:hover { color: var(--laut); background: var(--laut-muda); }
 .nav a.btn-primary, .nav a.btn-primary:hover { color: #fff; }
 
+/* Aula */
+.aula-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.aula-card { background: var(--kertas); border: 1px solid var(--garis); border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; }
+.aula-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #E4DACB; }
+.aula-band { height: 10px; }
+.aula-body { padding: 22px; display: flex; flex-direction: column; gap: 12px; flex-grow: 1; }
+.aula-body h3 { font-size: 26px; }
+.aula-body .btn { align-self: flex-start; margin-top: auto; }
+.price-box .tunggu { font-family: var(--body); font-size: 16px; color: var(--redup); font-weight: 600; }
+.notif-log { font-size: 13px; background: #F5EFE4; border-radius: 8px; padding: 10px 12px; white-space: pre-line; color: var(--redup); }
+@media (max-width: 900px) { .aula-grid { grid-template-columns: 1fr; } }
+.aula-note { margin-top: 18px; padding: 14px 16px; border-left: 4px solid var(--emas); background: var(--kertas); border-radius: 8px; font-size: 15px; color: var(--redup); }
+
 </style>
 <style>
   .p-wrap { width: min(480px, 100%); margin: 0 auto; }
@@ -342,6 +355,9 @@ var Core = (function () {
   function find(list, fn) { for (var i = 0; i < list.length; i++) if (fn(list[i])) return list[i]; return null; }
 
   function tipeOf(db, id) { return find(db.tipe, function (t) { return t.id === id; }); }
+  // Aula disewa per hari; kamar per malam.
+  function isAula(t) { return !!t && (String(t.kategori).toLowerCase() === 'aula' || String(t.satuan).toLowerCase() === 'hari'); }
+  function isEmail(s) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '')); }
   function roomsOf(db, tipe) { return db.kamar.filter(function (k) { return k.tipe === tipe && k.status !== 'perbaikan'; }); }
   function bookedOn(db, tipe, d, exceptKode) {
     var s = 0;
@@ -366,6 +382,7 @@ var Core = (function () {
     });
     var out = [];
     db.tipe.forEach(function (t) {
+      if (isAula(t)) return;
       var free = minFree(db, t.id, masuk, keluar);
       var cand = roomsOf(db, t.id).filter(function (k) { return !taken[k.no]; });
       cand.slice(0, Math.max(0, free)).forEach(function (k) {
@@ -377,16 +394,18 @@ var Core = (function () {
 
   function num(v) { var n = Number(String(v == null ? '' : v).replace(/[^\d]/g, '')); return isNaN(n) ? 0 : n; }
   function publicTipe(t) {
-    return { id: t.id, nama: t.nama, kapasitas: t.kapasitas, fasilitas: t.fasilitas, tarif: num(t.tarif), tarif_sarapan: num(t.tarif_sarapan), foto: t.foto };
+    var aula = isAula(t);
+    return { id: t.id, nama: t.nama, kategori: aula ? 'aula' : 'kamar', satuan: aula ? 'hari' : 'malam', kapasitas: t.kapasitas, fasilitas: t.fasilitas, tarif: num(t.tarif), tarif_sarapan: aula ? 0 : num(t.tarif_sarapan), foto: t.foto };
   }
   function hitungTotal(t, sarapan, jumlah, masuk, keluar) {
-    var tarif = sarapan === 'ya' ? num(t.tarif_sarapan) : num(t.tarif);
+    var tarif = (sarapan === 'ya' && !isAula(t)) ? num(t.tarif_sarapan) : num(t.tarif);
     return tarif * jumlah * nights(masuk, keluar);
   }
   function publicRes(db, r) {
     var t = tipeOf(db, r.tipe);
     return {
       kode: r.kode, nama: r.nama, tipe: r.tipe, tipeNama: t ? t.nama : r.tipe, jumlah: r.jumlah,
+      satuan: isAula(t) ? 'hari' : 'malam', kategori: isAula(t) ? 'aula' : 'kamar',
       masuk: r.masuk, keluar: r.keluar, status: r.status, billing: r.billing || '', catatan: r.catatan_petugas || '',
       sarapan: r.sarapan || '', total: num(r.total)
     };
@@ -455,15 +474,17 @@ var Core = (function () {
         };
         if (!r.nama) return fail('Nama pemesan wajib diisi.');
         if (r.hp.length < 9) return fail('Nomor WhatsApp belum lengkap.');
-        if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) return fail('Alamat email belum benar.');
+        if (!r.email) return fail('Email wajib diisi agar Anda menerima pemberitahuan setiap tahap.');
+        if (!isEmail(r.email)) return fail('Alamat email belum benar.');
         var t = tipeOf(db, r.tipe);
-        if (!t) return fail('Pilih tipe kamar.');
+        if (!t) return fail('Pilih kamar atau aula yang ingin dipesan.');
+        if (isAula(t)) { r.jumlah = 1; r.sarapan = 'tidak'; }
         if (!(r.jumlah >= 1 && r.jumlah <= MAKS_KAMAR)) return fail('Jumlah kamar 1 sampai ' + MAKS_KAMAR + '.');
         var e1 = checkRange(r.masuk, r.keluar);
         if (e1) return fail(e1);
         var sisa = minFree(db, r.tipe, r.masuk, r.keluar);
-        if (sisa < r.jumlah) return fail(t.nama + ' hanya tersisa ' + sisa + ' kamar pada tanggal itu. Ubah tanggal atau jumlah kamar.');
-        r.kode = makeKode('MDL', db, ctx.rand);
+        if (sisa < r.jumlah) return fail(isAula(t) ? t.nama + ' sudah dipesan pada sebagian tanggal itu. Pilih tanggal lain.' : t.nama + ' hanya tersisa ' + sisa + ' kamar pada tanggal itu. Ubah tanggal atau jumlah kamar.');
+        r.kode = makeKode(isAula(t) ? 'AUL' : 'MDL', db, ctx.rand);
         r.total = hitungTotal(t, r.sarapan, r.jumlah, r.masuk, r.keluar);
         r.dibuat = ctx.now;
         r.status = 'menunggu';
@@ -506,7 +527,7 @@ var Core = (function () {
           reservasi: res.map(function (x) {
             var o = publicRes(db, x);
             o.instansi = x.instansi; o.hp = x.hp; o.email = x.email; o.keperluan = x.keperluan;
-            o.catatanTamu = x.catatan_tamu; o.dibuat = x.dibuat; o.kamar = x.kamar;
+            o.catatanTamu = x.catatan_tamu; o.dibuat = x.dibuat; o.kamar = x.kamar; o.notifikasi = x.notifikasi || '';
             return o;
           }),
           pelatihan: Object.keys(groups).map(function (k) { return groups[k]; }).sort(function (a, b) { return String(b.masuk).localeCompare(String(a.masuk)); })
@@ -525,6 +546,10 @@ var Core = (function () {
         update('reservasi', ra, { status: st, billing: txt(p.billing, 60), catatan_petugas: txt(p.catatan, 300), kamar: txt(p.kamar, 200) });
         return ok({ reservasi: publicRes(db, ra) });
       }
+
+      case 'adminKirimUlang':
+        // Di server, perintah ini ditangani Apps Script. Di mode demo tidak ada email.
+        return ok({ email: { terkirim: false, alasan: 'Mode demo' } });
 
       case 'adminKamar': {
         var kk = find(db.kamar, function (k) { return k.no === p.no; });
@@ -585,7 +610,7 @@ var Core = (function () {
     }
   }
 
-  return { handle: handle, addDays: addDays, nights: nights, STATUS: STATUS, KAMAR_STATUS: KAMAR_STATUS };
+  return { handle: handle, addDays: addDays, nights: nights, isAula: isAula, STATUS: STATUS, KAMAR_STATUS: KAMAR_STATUS };
 })();
 
 </script>
@@ -596,7 +621,7 @@ var Core = (function () {
  */
 (function () {
   var C = window.CONFIG || {};
-  var DEMO_KEY = 'asrama-mandalika-demo-v2';
+  var DEMO_KEY = 'asrama-mandalika-demo-v3';
   var DEMO_PIN = '1234';
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -615,18 +640,25 @@ var Core = (function () {
     var kamar = [];
     for (var i = 1; i <= 25; i++) kamar.push({ no: 'K-' + (i < 10 ? '0' : '') + i, tipe: 'standar', lantai: '', kapasitas: 2, status: 'siap', catatan: '' });
     kamar[2].status = 'kotor'; kamar[6].status = 'perbaikan';
+    kamar.push({ no: 'AULA-PEJANGGIN', tipe: 'pejanggin', lantai: '', kapasitas: '', status: 'siap', catatan: '' });
+    kamar.push({ no: 'AULA-SUGENG', tipe: 'sugeng', lantai: '', kapasitas: '', status: 'siap', catatan: '' });
     function res(kode, nama, instansi, jumlah, m, k, status, sarapan) {
       var total = (sarapan === 'ya' ? 300000 : 200000) * jumlah * Core.nights(A(t, m), A(t, k));
-      return { kode: kode, dibuat: t + ' 08:00', nama: nama, instansi: instansi, hp: '081200000000', email: '', keperluan: 'Kegiatan dinas', tipe: 'standar', jumlah: jumlah, masuk: A(t, m), keluar: A(t, k), sarapan: sarapan, total: total, catatan_tamu: '', status: status, billing: '', catatan_petugas: '', kamar: '' };
+      return { kode: kode, dibuat: t + ' 08:00', nama: nama, instansi: instansi, hp: '081200000000', email: 'contoh@contoh.id', keperluan: 'Kegiatan dinas', tipe: 'standar', jumlah: jumlah, masuk: A(t, m), keluar: A(t, k), sarapan: sarapan, total: total, catatan_tamu: '', status: status, billing: '', catatan_petugas: '', kamar: '' };
     }
     return {
-      tipe: [{ id: 'standar', nama: 'Kamar Standar', kapasitas: 2, fasilitas: 'Dua tempat tidur single, meja kerja, lemari pakaian, handuk, pintu kaca menghadap taman', tarif: 200000, tarif_sarapan: 300000, foto: '' }],
+      tipe: [
+        { id: 'standar', nama: 'Kamar Standar', kategori: 'kamar', satuan: 'malam', kapasitas: 2, fasilitas: 'Dua tempat tidur single, meja kerja, lemari pakaian, handuk, pintu kaca menghadap taman', tarif: 200000, tarif_sarapan: 300000, foto: '' },
+        { id: 'pejanggin', nama: 'Aula Pejanggik', kategori: 'aula', satuan: 'hari', kapasitas: '', fasilitas: '', tarif: 0, tarif_sarapan: 0, foto: '' },
+        { id: 'sugeng', nama: 'Aula Sugeng Wiyono', kategori: 'aula', satuan: 'hari', kapasitas: '', fasilitas: '', tarif: 0, tarif_sarapan: 0, foto: '' }
+      ],
       kamar: kamar,
       reservasi: [
         res('MDL-1024', 'Contoh Pemesan A', 'Dinas Kesehatan Kab. Lombok Tengah', 4, 5, 7, 'menunggu', 'ya'),
         res('MDL-2317', 'Contoh Pemesan B', 'Puskesmas [Nama]', 2, 8, 10, 'disetujui', 'tidak'),
         res('MDL-3380', 'Contoh Pemesan C', 'Tamu umum', 1, 1, 3, 'lunas', 'ya'),
-        res('MDL-4461', 'Contoh Pemesan D', 'RSUD [Nama]', 10, 12, 15, 'menunggu', 'ya')
+        res('MDL-4461', 'Contoh Pemesan D', 'RSUD [Nama]', 10, 12, 15, 'menunggu', 'ya'),
+        (function () { var x = res('AUL-5120', 'Contoh Pemesan E', 'Dinas Kesehatan Provinsi NTB', 1, 6, 8, 'menunggu', 'tidak'); x.tipe = 'pejanggin'; x.total = 0; x.keperluan = 'Rapat / pertemuan'; return x; })()
       ],
       peserta: []
     };
@@ -644,6 +676,9 @@ var Core = (function () {
       var db = demoLoad();
       var out = Core.handle(db, action, params, { today: todayStr(), now: nowStr(), pin: DEMO_PIN, rand: rand });
       if (out.ops.inserts.length || out.ops.updates.length) demoSave(db);
+      if (out.result.ok && (action === 'config' || action === 'cek' || action === 'adminData')) {
+        out.result.rekening = { bank: 'Bank [nama bank]', nomor: '[nomor rekening]', nama: '[nama pemilik rekening]', teks: 'Bank [nama bank], No. [nomor rekening], a.n. [nama pemilik rekening]' };
+      }
       return new Promise(function (res) { setTimeout(function () { res(JSON.parse(JSON.stringify(out.result))); }, 150); });
     }
     var sep = C.API_URL.indexOf('?') >= 0 ? '&' : '?';
@@ -676,6 +711,16 @@ var Core = (function () {
   window.U = {
     today: todayStr,
     rp: function (n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); },
+    // Tanggal akhir yang ditampilkan: aula = hari terakhir kegiatan, kamar = tanggal check-out.
+    akhir: function (r) { return r.satuan === 'hari' ? Core.addDays(r.keluar, -1) : r.keluar; },
+    lama: function (r) { return Core.nights(r.masuk, r.keluar) + (r.satuan === 'hari' ? ' hari' : ' malam'); },
+    periode: function (r, withDay) {
+      var a = window.U.akhir(r);
+      return window.U.tgl(r.masuk, withDay) + (a !== r.masuk ? ' – ' + window.U.tgl(a, withDay) : '') + ' (' + window.U.lama(r) + ')';
+    },
+    dipesan: function (r) {
+      return r.satuan === 'hari' ? r.tipeNama : r.jumlah + ' kamar' + (r.sarapan ? (r.sarapan === 'ya' ? ', dengan sarapan' : ', tanpa sarapan') : '');
+    },
     tgl: function (s, withDay) {
       if (!s) return '—';
       var d = new Date(s + 'T00:00:00Z');
